@@ -19,8 +19,9 @@ import dk.bearware.User;
 import dk.bearware.UserState;
 import dk.bearware.backend.TeamTalkConstants;
 import dk.bearware.backend.TeamTalkService;
+import dk.bearware.data.Preferences;
 import dk.bearware.utils.PrefsHelper;
-import dk.bearware.utils.Utils;
+import dk.bearware.Utils; // PERBAIKAN: Import Utils dari root package dk.bearware
 
 public class ChannelListAdapter extends BaseAdapter {
 
@@ -45,7 +46,6 @@ public class ChannelListAdapter extends BaseAdapter {
 
     /**
      * CONSTRUCTOR BARU: Menerima semua dependency dari MainActivity
-     * Agar adapter bisa bekerja mandiri tanpa error.
      */
     public ChannelListAdapter(Context context, 
                               UserProfileManager mgr, 
@@ -61,7 +61,6 @@ public class ChannelListAdapter extends BaseAdapter {
 
     /**
      * Method untuk mengupdate channel aktif dari MainActivity
-     * Panggil ini setiap kali user pindah channel di MainActivity.
      */
     public void setCurrentChannel(Channel chan) {
         this.currentActiveChannel = chan;
