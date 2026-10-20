@@ -147,12 +147,12 @@ public class MainActivity extends AppCompatActivity
         ClientEventListener.OnCmdChannelUpdateListener, ClientEventListener.OnCmdUserLoggedOutListener,
         ClientEventListener.OnCmdUserLoggedInListener, ClientEventListener.OnCmdFileRemoveListener,
         ClientEventListener.OnUserStateChangeListener, ClientEventListener.OnVoiceActivationListener,
-        ClientEventListener.OnCmdFileNewListener {
+        ClientEventListener.OnCmdFileNewListener, ChannelListCallbacks { // <--- TAMBAHKAN DI SINI
 
     SectionsPagerAdapter mSectionsPagerAdapter;
     ViewPager mViewPager;
     TabLayout mTabLayout;
-
+    
     public static final String TAG = "bearware";
     private static final String MSG_NOTIFICATION_CHANNEL_ID = "TT_PM";
 
@@ -252,7 +252,14 @@ private UserProfileManager profileManager;
     //    channelsAdapter = new ChannelListAdapter(this.getBaseContext());
     
 // Kirim profileManager ke adapter agar bisa load foto
-channelsAdapter = new ChannelListAdapter(this.getBaseContext(), profileManager);
+// Inisialisasi adapter baru dengan menyuntikkan semua dependency
+channelsAdapter = new ChannelListAdapter(
+    this.getBaseContext(), 
+    profileManager, 
+    getService(), 
+    prefs, 
+    this // 'this' adalah ChannelListCallbacks
+);
         filesAdapter = new FileListAdapter(this, this, accessibilityAssistant);
         textmsgAdapter = new TextMessageAdapter(this, accessibilityAssistant);
         mediaAdapter = new MediaAdapter(this.getBaseContext());
@@ -2409,5 +2416,45 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
         int sound = sounds.get(bVoiceActive ? SOUND_VOXON : SOUND_VOXOFF);
         if (sound != 0)
             audioIcons.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
+           
     }
 }
+// ... (kode-kode lain di atasnya) ...
+
+    @Override
+    public void onVoiceActivation(boolean bVoiceActive) {
+        adjustTxState(bVoiceActive);
+        int sound = sounds.get(bVoiceActive ? SOUND_VOXON : SOUND_VOXOFF);
+        if (sound != 0) audioIcons.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
+    }
+
+    // === IMPLEMENTASI CALLBACK (Telinga Adapter) ===
+    @Override
+    public void onJoinChannel(Channel channel) { 
+        joinChannel(channel); 
+    }
+    
+    @Override
+    public void onItemClick(Object item) { 
+        onChannelItemClick(item); 
+    }
+    
+    @Override
+    public void onItemLongClick(Object item, View view) { 
+        onChannelItemLongClick(item, view); 
+    }
+    
+    @Override
+    public void openTextMessage(int userId) { 
+        Intent i = new Intent(this, TextMessageActivity.class);
+        startActivity(i.putExtra(TextMessageActivity.EXTRA_USERID, userId));
+    }
+
+    // === INTERFACE JEMBATAN (Mulut Adapter) ===
+    public interface ChannelListCallbacks {
+        void onJoinChannel(Channel channel);
+        void onItemClick(Object item);
+        void onItemLongClick(Object item, View view);
+        void openTextMessage(int userId);
+    }
+} // <--- INI KURUNG PENUTUP TERAKHIR MAINACTIVITY
