@@ -1,4 +1,4 @@
-name: TeamTalk5 Android Build (Public + Commit Tracking)
+name: TMT5 Android Build (Public + Commit Tracking)
 
 on:
   workflow_dispatch:
