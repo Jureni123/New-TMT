@@ -70,7 +70,8 @@ public class UserProfileManager {
           .get()
           .addOnSuccessListener(snapshot -> {
               if (!snapshot.isEmpty()) {
-                  QueryDocumentSnapshot doc = snapshot.getDocuments().get(0);
+                  DocumentSnapshot doc = snapshot.getDocuments().get(0);
+                 // QueryDocumentSnapshot doc = snapshot.getDocuments().get(0);
                   String url = doc.getString("foto_profil_url");
                   
                   if (url != null && !url.isEmpty()) {
