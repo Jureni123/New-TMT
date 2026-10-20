@@ -2366,7 +2366,7 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
         
     }
 
-    @Override
+@Override
     public void onVoiceTransmissionToggle(boolean voiceTransmissionEnabled, boolean isSuspended) {
         adjustTxState(voiceTransmissionEnabled);
 
@@ -2412,18 +2412,6 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
     @Override
     public void onVoiceActivation(boolean bVoiceActive) {
         adjustTxState(bVoiceActive);
-
-        int sound = sounds.get(bVoiceActive ? SOUND_VOXON : SOUND_VOXOFF);
-        if (sound != 0)
-            audioIcons.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
-           
-    }
-}
-// ... (kode-kode lain di atasnya) ...
-
-    @Override
-    public void onVoiceActivation(boolean bVoiceActive) {
-        adjustTxState(bVoiceActive);
         int sound = sounds.get(bVoiceActive ? SOUND_VOXON : SOUND_VOXOFF);
         if (sound != 0) audioIcons.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
     }
@@ -2457,4 +2445,4 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
         void onItemLongClick(Object item, View view);
         void openTextMessage(int userId);
     }
-} // <--- INI KURUNG PENUTUP TERAKHIR MAINACTIVITY
+} // <--- SATU-SATUNYA KURUNG PENUTUP TERAKHIR MAINACTIVITY
