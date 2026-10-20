@@ -145,7 +145,7 @@ public class SplashActivity extends AppCompatActivity {
                         String email = (user != null) ? user.getEmail() : "unknown";
                         
                         if (tvStatus != null) tvStatus.setText("✅ Login berhasil! (" + email + ")");
-                        Toast.makeText(this, "Login berhasil! Selamat datang.", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "Login berhasil!.", Toast.LENGTH_SHORT).show();
 
                         // ✅ SIMPAN URL FOTO PROFIL KE FIRESTORE SAAT LOGIN BERHASIL
                         savePhotoUrlToFirestore();
