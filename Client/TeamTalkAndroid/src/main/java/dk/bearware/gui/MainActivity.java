@@ -1,7 +1,3 @@
-/*/*
- * Copyright (c) 2005-2018, BearWare.dk
- * modif by jureni 123 
- */
 /*
  * Copyright (c) 2005-2018, BearWare.dk
  * modif by jureni 123 
@@ -79,9 +75,7 @@ import com.google.android.material.tabs.TabLayout;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.DocumentSnapshot;
 import com.bumptech.glide.Glide;
-
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -135,7 +129,8 @@ import dk.bearware.data.TTSWrapper;
 import dk.bearware.data.TextMessageAdapter;
 import dk.bearware.events.ClientEventListener;
 import dk.bearware.utils.PrefsHelper;
-import dk.bearware.gui.ChannelListCallbacks;
+import dk.bearware.utils.Utils; // Pastikan import Utils ada
+
 public class MainActivity extends AppCompatActivity
         implements TeamTalkConnectionListener, OnMenuItemClickListener, SensorEventListener,
         OnVoiceTransmissionToggleListener, ClientEventListener.OnConnectionLostListener,
@@ -147,7 +142,7 @@ public class MainActivity extends AppCompatActivity
         ClientEventListener.OnCmdChannelUpdateListener, ClientEventListener.OnCmdUserLoggedOutListener,
         ClientEventListener.OnCmdUserLoggedInListener, ClientEventListener.OnCmdFileRemoveListener,
         ClientEventListener.OnUserStateChangeListener, ClientEventListener.OnVoiceActivationListener,
-        ClientEventListener.OnCmdFileNewListener, ChannelListCallbacks { // <--- TAMBAHKAN DI SINI
+        ClientEventListener.OnCmdFileNewListener, ChannelListCallbacks { 
 
     SectionsPagerAdapter mSectionsPagerAdapter;
     ViewPager mViewPager;
@@ -181,7 +176,7 @@ public class MainActivity extends AppCompatActivity
     Sensor mSensor;
     boolean isProximitySensorRegistered = false;
     Map<Integer, User> users = new HashMap<>();
-private UserProfileManager profileManager; 
+    private UserProfileManager profileManager; 
 
     // === SISTEM CACHE AVATAR OPTIMIZED ===
     private static class AvatarData {
@@ -193,9 +188,8 @@ private UserProfileManager profileManager;
         }
     }
     private final Map<Integer, AvatarData> avatarCache = new HashMap<>();
-    private static final long AVATAR_CACHE_EXPIRY_MS = 5 * 60 * 1000; // 5 Menit
+    private static final long AVATAR_CACHE_EXPIRY_MS = 5 * 60 * 1000;
     private final Set<Integer> pendingAvatarRequests = new HashSet<>();
-		private final ChannelListCallbacks callbacks;	
     // =====================================
 
     static final String MESSAGE_NOTIFICATION_TAG = "incoming_message";
@@ -212,22 +206,19 @@ private UserProfileManager profileManager;
     private Context ctx;
     private PrefsHelper prefs;
 
-  
     public ChannelListAdapter getChannelsAdapter() { return channelsAdapter; }
     public FileListAdapter getFilesAdapter() { return filesAdapter; }
     public TextMessageAdapter getTextMessagesAdapter() { return textmsgAdapter; }
     public MediaAdapter getMediaAdapter() { return mediaAdapter; }
-//============
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-// Inisialisasi Profile Manager baru
-
         ctx = getApplicationContext();
         prefs = new PrefsHelper(ctx);
         mConnection = new TeamTalkConnection(this);
         setContentView(R.layout.activity_main);
-   profileManager = new UserProfileManager();
+        profileManager = new UserProfileManager();
         EdgeToEdgeHelper.enableEdgeToEdge(this);
 
         String serverName = getIntent().getStringExtra(ServerEntry.KEY_SERVERNAME);
@@ -250,17 +241,15 @@ private UserProfileManager profileManager;
         wakeLock.setReferenceCounted(false);
         proximityWakeLock.setReferenceCounted(false);
 
-    //    channelsAdapter = new ChannelListAdapter(this.getBaseContext());
-    
-// Kirim profileManager ke adapter agar bisa load foto
-// Inisialisasi adapter baru dengan menyuntikkan semua dependency
-channelsAdapter = new ChannelListAdapter(
-    this.getBaseContext(), 
-    profileManager, 
-    getService(), 
-    prefs, 
-    this // 'this' adalah ChannelListCallbacks
-);
+        // Inisialisasi adapter baru dengan dependency injection
+        channelsAdapter = new ChannelListAdapter(
+            this.getBaseContext(), 
+            profileManager, 
+            getService(), 
+            prefs, 
+            this 
+        );
+        
         filesAdapter = new FileListAdapter(this, this, accessibilityAssistant);
         textmsgAdapter = new TextMessageAdapter(this, accessibilityAssistant);
         mediaAdapter = new MediaAdapter(this.getBaseContext());
@@ -280,10 +269,8 @@ channelsAdapter = new ChannelListAdapter(
         }
     }
 
-//=============
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-            // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.main, menu);
         return true;
     }
@@ -295,13 +282,15 @@ channelsAdapter = new ChannelListAdapter(
         MediaFileInfo mfi = getService().currentMediaFileInfo;
         int flags = getClient().getFlags();
         boolean isPaused = (mfi.nStatus == MediaFileStatus.MFS_PAUSED);
-        boolean isStreaming = (flags & ClientFlag.CLIENT_STREAM_AUDIO) == ClientFlag.CLIENT_STREAM_AUDIO || (flags & ClientFlag.CLIENT_STREAM_VIDEO) == ClientFlag.CLIENT_STREAM_VIDEO;
+        boolean isStreaming = (flags & ClientFlag.CLIENT_STREAM_AUDIO) == ClientFlag.CLIENT_STREAM_AUDIO || 
+                              (flags & ClientFlag.CLIENT_STREAM_VIDEO) == ClientFlag.CLIENT_STREAM_VIDEO;
         boolean uploadRight = (myuseraccount.uUserRights & UserRight.USERRIGHT_UPLOAD_FILES) != UserRight.USERRIGHT_NONE;
         boolean broadcastRight = (myuseraccount.uUserRights & UserRight.USERRIGHT_TEXTMESSAGE_BROADCAST) != UserRight.USERRIGHT_NONE;
         boolean isEditable = curchannel != null;
         boolean isJoinable = curchannel != null && getClient().getMyChannelID() != curchannel.nChannelID && curchannel.nMaxUsers > 0;
         boolean isLeaveable = getClient().getMyChannelID() > 0;
         boolean isMyChannel = curchannel != null && getClient().getMyChannelID() == curchannel.nChannelID;
+        
         menu.findItem(R.id.action_pause).setEnabled(isStreaming).setVisible(isStreaming);
         menu.findItem(R.id.action_pause).setTitle(isPaused ? R.string.action_resume : R.string.action_pause);
         menu.findItem(R.id.action_edit).setEnabled(isEditable).setVisible(isEditable);
@@ -319,14 +308,12 @@ channelsAdapter = new ChannelListAdapter(
         AlertDialog.Builder alert = new AlertDialog.Builder(this);
         int itemId = item.getItemId();
         if (itemId == R.id.action_join) {
-            if (curchannel != null)
-                joinChannel(curchannel);
+            if (curchannel != null) joinChannel(curchannel);
         } else if (itemId == R.id.action_leave) {
             leaveChannel();
         } else if (itemId == R.id.action_upload) {
             if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ?
-                requestMediaPermissions() :
-                Permissions.READ_EXTERNAL_STORAGE.request(this)) {
+                requestMediaPermissions() : Permissions.READ_EXTERNAL_STORAGE.request(this)) {
                 fileSelectionStart();
             }
         } else if (itemId == R.id.action_broadcast) {
@@ -334,17 +321,21 @@ channelsAdapter = new ChannelListAdapter(
             alert.setMessage(R.string.text_broadcast_message);
             final EditText input = new EditText(this);
             input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-            alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> getClient().doTextMessage(new TextMessage() {{ nMsgType = TextMsgType.MSGTYPE_BROADCAST; szMessage = input.getText().toString(); }}));
+            alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> 
+                getClient().doTextMessage(new TextMessage() {{ 
+                    nMsgType = TextMsgType.MSGTYPE_BROADCAST; 
+                    szMessage = input.getText().toString(); 
+                }}));
             alert.setNegativeButton(android.R.string.no, null);
             alert.setView(input);
             alert.show();
         } else if (itemId == R.id.action_stream) {
             int flags = getClient().getFlags();
-            if ((flags & ClientFlag.CLIENT_STREAM_AUDIO) == ClientFlag.CLIENT_STREAM_AUDIO || (flags & ClientFlag.CLIENT_STREAM_VIDEO) == ClientFlag.CLIENT_STREAM_VIDEO) {
+            if ((flags & ClientFlag.CLIENT_STREAM_AUDIO) == ClientFlag.CLIENT_STREAM_AUDIO || 
+                (flags & ClientFlag.CLIENT_STREAM_VIDEO) == ClientFlag.CLIENT_STREAM_VIDEO) {
                 getClient().stopStreamingMediaFileToChannel();
             } else {
-                Intent intent = new Intent(MainActivity.this, StreamMediaActivity.class);
-                startActivity(intent);
+                startActivity(new Intent(MainActivity.this, StreamMediaActivity.class));
             }
         } else if (itemId == R.id.action_pause) {
             MediaFileInfo mfi = getService().currentMediaFileInfo;
@@ -354,39 +345,29 @@ channelsAdapter = new ChannelListAdapter(
             pb.bPaused = (mfi.nStatus == MediaFileStatus.MFS_PLAYING);
             getClient().updateStreamingMediaFileToChannel(pb, vc);
         } else if (itemId == R.id.action_edit) {
-            if (curchannel != null)
-                editChannelProperties(curchannel);
+            if (curchannel != null) editChannelProperties(curchannel);
         } else if (itemId == R.id.action_newchannel) {
             Intent intent = new Intent(MainActivity.this, ChannelPropActivity.class);
-
             int parent_chan_id = getClient().getRootChannelID();
-            if(curchannel != null)
-                parent_chan_id = curchannel.nChannelID;
-            intent = intent.putExtra(ChannelPropActivity.EXTRA_PARENTID, parent_chan_id);
-
-            startActivityForResult(intent, REQUEST_NEWCHANNEL);
+            if(curchannel != null) parent_chan_id = curchannel.nChannelID;
+            startActivityForResult(intent.putExtra(ChannelPropActivity.EXTRA_PARENTID, parent_chan_id), REQUEST_NEWCHANNEL);
         } else if (itemId == R.id.action_settings) {
-            Intent intent = new Intent(MainActivity.this, PreferencesActivity.class);
-            startActivity(intent);
+            startActivity(new Intent(MainActivity.this, PreferencesActivity.class));
         } else if (itemId == R.id.action_statusnick) {
             showChangeNicknameStatusDialog();
         } else if (itemId == R.id.action_online_users) {
-            Intent intent = new Intent(MainActivity.this, OnlineUsersActivity.class);
-            startActivity(intent);
+            startActivity(new Intent(MainActivity.this, OnlineUsersActivity.class));
         } else if (itemId == android.R.id.home) {
             int currentPage = mViewPager.getCurrentItem();
-            Channel parentChannel = ((currentPage == SectionsPagerAdapter.CHANNELS_PAGE)
-                                     && (curchannel != null)
-                                     ) ?
-                getService().getChannels().get(curchannel.nParentID) :
-                null;
+            Channel parentChannel = ((currentPage == SectionsPagerAdapter.CHANNELS_PAGE) && (curchannel != null)) ?
+                getService().getChannels().get(curchannel.nParentID) : null;
+                
             if (currentPage != SectionsPagerAdapter.CHANNELS_PAGE) {
                 mViewPager.setCurrentItem(SectionsPagerAdapter.CHANNELS_PAGE);
             } else if ((curchannel != null)) {
                 setCurrentChannel(parentChannel);
                 channelsAdapter.notifyDataSetChanged();
-            }
-            else if (filesAdapter.getActiveTransfersCount() > 0) {
+            } else if (filesAdapter.getActiveTransfersCount() > 0) {
                 alert.setMessage(R.string.disconnect_alert);
                 alert.setPositiveButton(android.R.string.ok, (dialog, whichButton) -> {
                     filesAdapter.cancelAllTransfers();
@@ -394,8 +375,7 @@ channelsAdapter = new ChannelListAdapter(
                 });
                 alert.setNegativeButton(android.R.string.cancel, null);
                 alert.show();
-            }
-            else {
+            } else {
                 finish();
             }
         } else {
@@ -410,13 +390,11 @@ channelsAdapter = new ChannelListAdapter(
             Toast.makeText(this, R.string.text_con_cmderr, Toast.LENGTH_SHORT).show();
             return;
         }
-
         final int[] modeValues = {
-                TeamTalkConstants.STATUSMODE_AVAILABLE,
-                TeamTalkConstants.STATUSMODE_AWAY,
-                TeamTalkConstants.STATUSMODE_QUESTION
+            TeamTalkConstants.STATUSMODE_AVAILABLE,
+            TeamTalkConstants.STATUSMODE_AWAY,
+            TeamTalkConstants.STATUSMODE_QUESTION
         };
-
         int currentMode = myself.nStatusMode & TeamTalkConstants.STATUSMODE_MODE;
 
         View layout = getLayoutInflater().inflate(R.layout.dialog_change_nickname_status, null);
@@ -432,8 +410,7 @@ channelsAdapter = new ChannelListAdapter(
 
         for (int i = 0; i < modeValues.length; i++) {
             if (modeValues[i] == currentMode) {
-                modeGroup.check(
-                        ((RadioButton) modeGroup.getChildAt(i)).getId());
+                modeGroup.check(((RadioButton) modeGroup.getChildAt(i)).getId());
                 break;
             }
         }
@@ -442,15 +419,12 @@ channelsAdapter = new ChannelListAdapter(
         alert.setTitle(R.string.action_statusnick);
         alert.setView(layout);
         alert.setPositiveButton(android.R.string.ok, (dialog, which) -> {
-            int selectedIndex = modeGroup.indexOfChild(
-                    modeGroup.findViewById(modeGroup.getCheckedRadioButtonId()));
-
+            int selectedIndex = modeGroup.indexOfChild(modeGroup.findViewById(modeGroup.getCheckedRadioButtonId()));
             applyNicknameStatusChange(
-                    nicknameInput.getText().toString(),
-                    modeValues[selectedIndex],
-                    statusMessageInput.getText().toString());
+                nicknameInput.getText().toString(),
+                modeValues[selectedIndex],
+                statusMessageInput.getText().toString());
         });
-
         alert.setNegativeButton(android.R.string.cancel, null);
         alert.show();
     }
@@ -458,23 +432,16 @@ channelsAdapter = new ChannelListAdapter(
     private void applyNicknameStatusChange(String nickname, int mode, String statusMessage) {
         User myself = getService().getUsers().get(getClient().getMyUserID());
         ServerEntry serverEntry = getService().getServerEntry();
-        if (myself == null)
-            return;
+        if (myself == null) return;
 
         serverEntry.nickname = nickname;
         serverEntry.statusmsg = statusMessage;
         getService().setServerEntry(serverEntry);
 
-        if (TextUtils.isEmpty(nickname)) {
-            nickname = prefs.get(Preferences.PREF_GENERAL_NICKNAME, "");
-        }
-
-        if (TextUtils.isEmpty(statusMessage)) {
-            statusMessage = prefs.get(Preferences.PREF_GENERAL_STATUSMSG, "");
-        }
+        if (TextUtils.isEmpty(nickname)) nickname = prefs.get(Preferences.PREF_GENERAL_NICKNAME, "");
+        if (TextUtils.isEmpty(statusMessage)) statusMessage = prefs.get(Preferences.PREF_GENERAL_STATUSMSG, "");
 
         int statusMode = (myself.nStatusMode & ~TeamTalkConstants.STATUSMODE_MODE) | mode;
-
         getClient().doChangeNickname(nickname);
         getClient().doChangeStatus(statusMode, statusMessage);
     }
@@ -486,19 +453,15 @@ channelsAdapter = new ChannelListAdapter(
             ttsWrapper = new TTSWrapper(this, prefs.get("pref_speech_engine", TTSWrapper.defaultEngineName));
 
         if (!mConnection.isBound()) {
-            // Bind to LocalService
             Intent intent = new Intent(ctx, TeamTalkService.class);
             Log.d(TAG, "Binding TeamTalk service");
             if(!bindService(intent, mConnection, Context.BIND_AUTO_CREATE))
                 Log.e(TAG, "Failed to bind to TeamTalk service");
-        }
-        else {
+        } else {
             adjustSoundSystem();
             if (prefs.get(Preferences.PREF_SOUNDSYSTEM_BLUETOOTH_HEADSET, false)) {
-                if (Permissions.BLUETOOTH.request(this))
-                    getService().watchBluetoothHeadset();
-            }
-            else getService().unwatchBluetoothHeadset();
+                if (Permissions.BLUETOOTH.request(this)) getService().watchBluetoothHeadset();
+            } else getService().unwatchBluetoothHeadset();
 
             int mastervol = prefs.get(Preferences.PREF_SOUNDSYSTEM_MASTERVOLUME, SoundLevel.SOUND_VOLUME_DEFAULT);
             int gain = prefs.get(Preferences.PREF_SOUNDSYSTEM_MICROPHONEGAIN, SoundLevel.SOUND_GAIN_DEFAULT);
@@ -506,13 +469,9 @@ channelsAdapter = new ChannelListAdapter(
             boolean voxState = getService().isVoiceActivationEnabled();
             boolean txState = getService().isVoiceTransmitting();
 
-            // only set volume and gain if tt-instance hasn't already been configured
-            if (getClient().getSoundOutputVolume() != mastervol)
-                getClient().setSoundOutputVolume(mastervol);
-            if (getClient().getSoundInputGainLevel() != gain)
-                getClient().setSoundInputGainLevel(gain);
-            if (getClient().getVoiceActivationLevel() != voxlevel)
-                getClient().setVoiceActivationLevel(voxlevel);
+            if (getClient().getSoundOutputVolume() != mastervol) getClient().setSoundOutputVolume(mastervol);
+            if (getClient().getSoundInputGainLevel() != gain) getClient().setSoundInputGainLevel(gain);
+            if (getClient().getVoiceActivationLevel() != voxlevel) getClient().setVoiceActivationLevel(voxlevel);
 
             adjustMuteButton(findViewById(R.id.speakerBtn));
             adjustVoxState(voxState, voxState ? voxlevel : gain);
@@ -541,34 +500,20 @@ channelsAdapter = new ChannelListAdapter(
             isProximitySensorRegistered = true;
         }
 
-        if (audioIcons != null)
-            audioIcons.release();
+        if (audioIcons != null) audioIcons.release();
         sounds.clear();
-
         audioIcons = new SoundPool(1, AudioManager.STREAM_MUSIC, 0);
 
-        if (prefs.get("server_lost_audio_icon", true)) {
-            sounds.put(SOUND_SERVERLOST, audioIcons.load(ctx, R.raw.serverlost, 1));
-        }
+        if (prefs.get("server_lost_audio_icon", true)) sounds.put(SOUND_SERVERLOST, audioIcons.load(ctx, R.raw.serverlost, 1));
         if (prefs.get("rx_tx_audio_icon", true)) {
             sounds.put(SOUND_VOICETXON, audioIcons.load(ctx, R.raw.on, 1));
             sounds.put(SOUND_VOICETXOFF, audioIcons.load(ctx, R.raw.off, 1));
         }
-        if (prefs.get("private_message_audio_icon", true)) {
-            sounds.put(SOUND_USERMSG, audioIcons.load(ctx, R.raw.user_message, 1));
-        }
-        if (prefs.get("channel_message_audio_icon", true)) {
-            sounds.put(SOUND_CHANMSG, audioIcons.load(ctx, R.raw.channel_message, 1));
-        }
-        if (prefs.get("channel_message_sent_audio_icon", true)) {
-            sounds.put(SOUND_CHANMSGSENT, audioIcons.load(ctx, R.raw.channel_message_sent, 1));
-        }
-        if (prefs.get("broadcast_message_audio_icon", true)) {
-            sounds.put(SOUND_BCASTMSG, audioIcons.load(ctx, R.raw.broadcast_message, 1));
-        }
-        if (prefs.get("files_updated_audio_icon", true)) {
-            sounds.put(SOUND_FILESUPDATE, audioIcons.load(ctx, R.raw.fileupdate, 1));
-        }
+        if (prefs.get("private_message_audio_icon", true)) sounds.put(SOUND_USERMSG, audioIcons.load(ctx, R.raw.user_message, 1));
+        if (prefs.get("channel_message_audio_icon", true)) sounds.put(SOUND_CHANMSG, audioIcons.load(ctx, R.raw.channel_message, 1));
+        if (prefs.get("channel_message_sent_audio_icon", true)) sounds.put(SOUND_CHANMSGSENT, audioIcons.load(ctx, R.raw.channel_message_sent, 1));
+        if (prefs.get("broadcast_message_audio_icon", true)) sounds.put(SOUND_BCASTMSG, audioIcons.load(ctx, R.raw.broadcast_message, 1));
+        if (prefs.get("files_updated_audio_icon", true)) sounds.put(SOUND_FILESUPDATE, audioIcons.load(ctx, R.raw.fileupdate, 1));
         if (prefs.get("voiceact_audio_icon", true)) {
             sounds.put(SOUND_VOXENABLE, audioIcons.load(ctx, R.raw.voiceact_enable, 1));
             sounds.put(SOUND_VOXDISABLE, audioIcons.load(ctx, R.raw.voiceact_disable, 1));
@@ -577,9 +522,7 @@ channelsAdapter = new ChannelListAdapter(
             sounds.put(SOUND_VOXON, audioIcons.load(ctx, R.raw.voiceact_on, 1));
             sounds.put(SOUND_VOXOFF, audioIcons.load(ctx, R.raw.voiceact_off, 1));
         }
-        if (prefs.get("typing_icon", true)) {
-            sounds.put(SOUND_TYPING, audioIcons.load(ctx, R.raw.typing, 1));
-        }
+        if (prefs.get("typing_icon", true)) sounds.put(SOUND_TYPING, audioIcons.load(ctx, R.raw.typing, 1));
         if (prefs.get("intercept_audio_icon", true)) {
             sounds.put(SOUND_INTERCEPTON, audioIcons.load(ctx, R.raw.intercept, 1));
             sounds.put(SOUND_INTERCEPTOFF, audioIcons.load(ctx, R.raw.interceptend, 1));
@@ -588,23 +531,13 @@ channelsAdapter = new ChannelListAdapter(
             sounds.put(SOUND_TXREADY, audioIcons.load(ctx, R.raw.txqueue_start, 1));
             sounds.put(SOUND_TXSTOP, audioIcons.load(ctx, R.raw.txqueue_stop, 1));
         }
-        if (prefs.get("userjoin_icon", true)) {
-            sounds.put(SOUND_USERJOIN, audioIcons.load(ctx, R.raw.user_join, 1));
-        }
-        if (prefs.get("userleft_icon", true)) {
-            sounds.put(SOUND_USERLEFT, audioIcons.load(ctx, R.raw.user_left, 1));
-        }
-        if (prefs.get("userloggedin_icon", true)) {
-            sounds.put(SOUND_USERLOGGEDIN, audioIcons.load(ctx, R.raw.logged_on, 1));
-        }
-        if (prefs.get("userloggedoff_icon", true)) {
-            sounds.put(SOUND_USERLOGGEDOFF, audioIcons.load(ctx, R.raw.logged_off, 1));
-        }
+        if (prefs.get("userjoin_icon", true)) sounds.put(SOUND_USERJOIN, audioIcons.load(ctx, R.raw.user_join, 1));
+        if (prefs.get("userleft_icon", true)) sounds.put(SOUND_USERLEFT, audioIcons.load(ctx, R.raw.user_left, 1));
+        if (prefs.get("userloggedin_icon", true)) sounds.put(SOUND_USERLOGGEDIN, audioIcons.load(ctx, R.raw.logged_on, 1));
+        if (prefs.get("userloggedoff_icon", true)) sounds.put(SOUND_USERLOGGEDOFF, audioIcons.load(ctx, R.raw.logged_off, 1));
 
         getTextMessagesAdapter().showLogMessages(prefs.get("show_log_messages", true));
-
         getWindow().getDecorView().setKeepScreenOn(prefs.get("keep_screen_on_checkbox", false));
-
         createStatusTimer();
         ttsWrapper.useAnnouncements = prefs.get("pref_use_announcements", false);
         ttsWrapper.setAccessibilityStream(prefs.get("pref_a11y_volume", false));
@@ -614,35 +547,21 @@ channelsAdapter = new ChannelListAdapter(
     @Override
     protected void onPause() {
         super.onPause();
-        if (stats_timer != null) {
-            stats_timer.cancel();
-            stats_timer = null;
-        }
+        if (stats_timer != null) { stats_timer.cancel(); stats_timer = null; }
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        // Cleanup resources
         if (isFinishing()) {
-            if (audioIcons != null) {
-                audioIcons.release();
-                audioIcons = null;
-            }
-            if (ttsWrapper != null) {
-                ttsWrapper.shutdown();
-                ttsWrapper = null;
-            }
-
+            if (audioIcons != null) { audioIcons.release(); audioIcons = null; }
+            if (ttsWrapper != null) { ttsWrapper.shutdown(); ttsWrapper = null; }
             audioManager.setMode(AudioManager.MODE_NORMAL);
-
-            // Unbind from the service
             if (mConnection.isBound()) {
                 Log.d(TAG, "Unbinding TeamTalk service");
                 getService().disablePhoneCallReaction();
                 getService().unwatchBluetoothHeadset();
                 getService().resetState();
-
                 onServiceDisconnected(getService());
                 unbindService(mConnection);
                 mConnection.setBound(false);
@@ -655,20 +574,16 @@ channelsAdapter = new ChannelListAdapter(
     @Override
     protected void onDestroy() {
         super.onDestroy();
-
         if (isProximitySensorRegistered) {
             mSensorManager.unregisterListener(this);
             isProximitySensorRegistered = false;
         }
-        // Unbind from the service
         if(mConnection.isBound()) {
             Log.d(TAG, "Unbinding TeamTalk service");
-            // no double unregister on ttservice (see onStop())
             onServiceDisconnected(getService());
             unbindService(mConnection);
             mConnection.setBound(false);
         }
-
         Log.d(TAG, "Activity destroyed " + this.hashCode());
     }
 
@@ -679,17 +594,10 @@ channelsAdapter = new ChannelListAdapter(
             String path = AbsolutePathHelper.getRealPath(this.getBaseContext(), uri);
             if (path != null) {
                 File localFile = new File(path);
-                if (localFile.canRead()) {
-                    startFileUpload(path);
-                } else {
-                    new FileCopyingTask().execute(uri);
-                }
-            } else {
-                new FileCopyingTask().execute(uri);
-            }
-        } else {
-            super.onActivityResult(requestCode, resultCode, data);
-        }
+                if (localFile.canRead()) startFileUpload(path);
+                else new FileCopyingTask().execute(uri);
+            } else new FileCopyingTask().execute(uri);
+        } else super.onActivityResult(requestCode, resultCode, data);
     }
 
     private boolean startFileUpload(String path) {
@@ -705,9 +613,7 @@ channelsAdapter = new ChannelListAdapter(
         return false;
     }
 
-
     private class FileCopyingTask extends AsyncTask<Uri, Void, String> {
-
         @Override
         protected String doInBackground(Uri... uris) {
             Uri uri = uris[0];
@@ -717,46 +623,26 @@ channelsAdapter = new ChannelListAdapter(
                 File transitFile = new File(getCacheDir(), cursor.getString(columnIndex));
                 cursor.close();
                 try {
-                    if (((!transitFile.exists()) || transitFile.delete()) && transitFile.createNewFile()) {
-                        transitFile.deleteOnExit();
-                    } else {
-                        return null;
-                    }
-                } catch (Exception ex) {
-                    return null;
-                }
+                    if (((!transitFile.exists()) || transitFile.delete()) && transitFile.createNewFile()) transitFile.deleteOnExit();
+                    else return null;
+                } catch (Exception ex) { return null; }
                 try (InputStream src = getContentResolver().openInputStream(uri);
                      FileOutputStream dest = new FileOutputStream(transitFile)) {
                     byte[] buffer = new byte[1024];
                     int read;
-                    while ((read = src.read(buffer)) > 0) {
-                        dest.write(buffer, 0, read);
-                    }
-                } catch (Exception ex) {
-                    return null;
-                }
+                    while ((read = src.read(buffer)) > 0) dest.write(buffer, 0, read);
+                } catch (Exception ex) { return null; }
                 return transitFile.getPath();
-            } else if (cursor != null) {
-                cursor.close();
-            }
+            } else if (cursor != null) cursor.close();
             return null;
         }
-
         @Override
         protected void onPostExecute(String path) {
-            if ((path != null) && !startFileUpload(path)) {
-                File transitFile = new File(path);
-                transitFile.delete();
-            }
+            if ((path != null) && !startFileUpload(path)) new File(path).delete();
         }
-
     }
 
- //========== BAGIAN 1=======
- 
-//==========BAGIAN 2========"
-    public void onAccuracyChanged(Sensor sensor, int accuracy) {
-    }
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {}
 
     public void onSensorChanged(SensorEvent event) {
         boolean proximitySensor = prefs.get("proximity_sensor_checkbox", false);
@@ -769,8 +655,7 @@ channelsAdapter = new ChannelListAdapter(
             } else {
                 proximityWakeLock.release();
                 adjustSoundSystem();
-                if (getService().isVoiceTransmissionEnabled())
-                    getService().enableVoiceTransmission(false);
+                if (getService().isVoiceTransmissionEnabled()) getService().enableVoiceTransmission(false);
             }
         }
     }
@@ -782,13 +667,7 @@ channelsAdapter = new ChannelListAdapter(
     FilesSectionFragment filesFragment;
 
     public class SectionsPagerAdapter extends FragmentPagerAdapter implements ViewPager.OnPageChangeListener {
-
-        public static final int CHANNELS_PAGE   = 0,
-                                CHAT_PAGE       = 1,
-                                MEDIA_PAGE      = 2,
-                                FILES_PAGE      = 3,
-
-                                PAGE_COUNT      = 4;
+        public static final int CHANNELS_PAGE = 0, CHAT_PAGE = 1, MEDIA_PAGE = 2, FILES_PAGE = 3, PAGE_COUNT = 4;
 
         public SectionsPagerAdapter(FragmentManager fm) {
             super(fm, BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT);
@@ -796,76 +675,47 @@ channelsAdapter = new ChannelListAdapter(
 
         @Override @NonNull
         public Fragment getItem(int position) {
-
-            // getItem is called to instantiate the fragment for the given page.
-
             switch(position) {
                 default :
-                case CHANNELS_PAGE : {
-                    channelsFragment = new ChannelsSectionFragment();
-                    return channelsFragment;
-                }
-                case CHAT_PAGE : {
-                    chatFragment = new ChatSectionFragment();
-                    return chatFragment;
-                }
-                case MEDIA_PAGE : {
-                    mediaFragment = new MediaSectionFragment();
-                    return mediaFragment;
-                }
-                case FILES_PAGE : {
-                    filesFragment = new FilesSectionFragment();
-                    return filesFragment;
-                }
+                case CHANNELS_PAGE : channelsFragment = new ChannelsSectionFragment(); return channelsFragment;
+                case CHAT_PAGE : chatFragment = new ChatSectionFragment(); return chatFragment;
+                case MEDIA_PAGE : mediaFragment = new MediaSectionFragment(); return mediaFragment;
+                case FILES_PAGE : filesFragment = new FilesSectionFragment(); return filesFragment;
             }
         }
 
-        @Override
-        public int getCount() {
-            return PAGE_COUNT;
-        }
+        @Override public int getCount() { return PAGE_COUNT; }
 
         @Override
         public CharSequence getPageTitle(int position) {
             Locale l = Locale.getDefault();
             switch(position) {
-                case CHANNELS_PAGE :
-                    return getString(R.string.title_section_channels).toUpperCase(l);
-                case CHAT_PAGE :
-                    return getString(R.string.title_section_chat).toUpperCase(l);
-                case MEDIA_PAGE :
-                    return getString(R.string.title_section_media).toUpperCase(l);
-                case FILES_PAGE :
-                    return getString(R.string.title_section_files).toUpperCase(l);
+                case CHANNELS_PAGE : return getString(R.string.title_section_channels).toUpperCase(l);
+                case CHAT_PAGE : return getString(R.string.title_section_chat).toUpperCase(l);
+                case MEDIA_PAGE : return getString(R.string.title_section_media).toUpperCase(l);
+                case FILES_PAGE : return getString(R.string.title_section_files).toUpperCase(l);
             }
             return null;
         }
 
-        @Override
-        public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
-        }
+        @Override public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {}
 
         @Override
         public void onPageSelected(int position) {
             InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
             View v = getCurrentFocus();
-            if (v != null)
-                imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
+            if (v != null) imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
             accessibilityAssistant.setVisiblePage(position);
         }
 
-        @Override
-        public void onPageScrollStateChanged(int state) {
-        }
+        @Override public void onPageScrollStateChanged(int state) {}
     }
-
 
     private void fileSelectionStart() {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
-        Intent i = Intent.createChooser(intent, "File");
-        startActivityForResult(i, REQUEST_SELECT_FILE);
+        startActivityForResult(Intent.createChooser(intent, "File"), REQUEST_SELECT_FILE);
     }
 
     private boolean requestMediaPermissions() {
@@ -882,8 +732,8 @@ channelsAdapter = new ChannelListAdapter(
     }
 
     private void editChannelProperties(Channel channel) {
-        Intent intent = new Intent(this, ChannelPropActivity.class);
-        startActivityForResult(intent.putExtra(ChannelPropActivity.EXTRA_CHANNELID, channel.nChannelID), REQUEST_EDITCHANNEL);
+        startActivityForResult(new Intent(this, ChannelPropActivity.class)
+            .putExtra(ChannelPropActivity.EXTRA_CHANNELID, channel.nChannelID), REQUEST_EDITCHANNEL);
     }
 
     private void leaveChannel() {
@@ -899,10 +749,7 @@ channelsAdapter = new ChannelListAdapter(
             activecmds.put(cmdid, CmdComplete.CMD_COMPLETE_JOIN);
             channel.szPassword = passwd;
             getService().setJoinChannel(channel);
-        }
-        else {
-            Toast.makeText(this, R.string.text_con_cmderr, Toast.LENGTH_LONG).show();
-        }
+        } else Toast.makeText(this, R.string.text_con_cmderr, Toast.LENGTH_LONG).show();
     }
 
     private void joinChannel(final Channel channel, final String passwd) {
@@ -915,11 +762,7 @@ channelsAdapter = new ChannelListAdapter(
             });
             alert.setNegativeButton(android.R.string.cancel, null);
             alert.show();
-        }
-
-        else {
-            joinChannelUnsafe(channel, passwd);
-        }
+        } else joinChannelUnsafe(channel, passwd);
     }
 
     private void joinChannel(final Channel channel) {
@@ -941,40 +784,29 @@ channelsAdapter = new ChannelListAdapter(
                 InputMethodManager im = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
                 im.hideSoftInputFromWindow(input.getWindowToken(), 0);
             });
-			final AlertDialog dialog = alert.create();
+            final AlertDialog dialog = alert.create();
             dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
             dialog.show();
-        }
-        else {
-            joinChannel(channel, "");
-        }
+        } else joinChannel(channel, "");
     }
 
-    // the channel currently being displayed
     private void setCurrentChannel(Channel channel) {
         curchannel = channel;
         ActionBar ab = getSupportActionBar();
-        if (ab != null)
-            ab.setSubtitle((channel != null) ? channel.szName : null);
+        if (ab != null) ab.setSubtitle((channel != null) ? channel.szName : null);
         invalidateOptionsMenu();
     }
 
-    // the channel we're currently in
     private void setMyChannel(Channel channel) {
         mychannel = channel;
-
         adjustVoiceGain();
     }
 
     private void subscriptionChange(User user) {
         User olduser = this.users.get(user.nUserID);
-
-        // text-to-speech on subscription changes
         if (olduser != null && this.ttsWrapper != null) {
             Utils.ttsSubscriptionChanged(getBaseContext(), olduser, user).ifPresent((text -> ttsWrapper.speak(text)));
         }
-
-        // play sound if intercept subscription is toggled
         if (olduser != null && (this.sounds.get(SOUND_INTERCEPTON) != 0 && this.sounds.get(SOUND_INTERCEPTOFF) != 0)) {
             Utils.subscriptionChanged(olduser, user, Subscription.SUBSCRIBE_INTERCEPT_USER_MSG).ifPresent(isOn -> audioIcons.play((isOn ? sounds.get(SOUND_INTERCEPTON) : sounds.get(SOUND_INTERCEPTOFF)), 1.0f, 1.0f, 0, 0, 1.0f));
             Utils.subscriptionChanged(olduser, user, Subscription.SUBSCRIBE_INTERCEPT_CHANNEL_MSG).ifPresent(isOn -> audioIcons.play((isOn ? sounds.get(SOUND_INTERCEPTON) : sounds.get(SOUND_INTERCEPTOFF)), 1.0f, 1.0f, 0, 0, 1.0f));
@@ -987,55 +819,40 @@ channelsAdapter = new ChannelListAdapter(
 
     private boolean isVisibleChannel(int chanid) {
         if (curchannel != null) {
-            if (curchannel.nParentID == chanid)
-                return true;
+            if (curchannel.nParentID == chanid) return true;
             Channel channel = getService().getChannels().get(chanid);
-            if (channel != null)
-                return curchannel.nChannelID == channel.nParentID;
-        }
-        else {
-            return chanid == getClient().getRootChannelID();
-        }
+            if (channel != null) return curchannel.nChannelID == channel.nParentID;
+        } else return chanid == getClient().getRootChannelID();
         return false;
     }
 
     public static class ChannelsSectionFragment extends Fragment {
         MainActivity mainActivity;
-
-        public ChannelsSectionFragment() {
-        }
-
+        public ChannelsSectionFragment() {}
         @Override
         public void onAttach(@NonNull Activity activity) {
             mainActivity = (MainActivity) activity;
             super.onAttach(activity);
         }
-
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.fragment_main_channels, container, false);
             mainActivity.accessibilityAssistant.registerPage(rootView, SectionsPagerAdapter.CHANNELS_PAGE);
-
             ListView channelsList = rootView.findViewById(R.id.listChannels);
             channelsList.setAdapter(mainActivity.getChannelsAdapter());
-
             return rootView;
         }
     }
     
     public static class ChatSectionFragment extends Fragment {
         MainActivity mainActivity;
-        
-private EditText newmsg;
-        public ChatSectionFragment() {
-        }
-        
+        private EditText newmsg;
+        public ChatSectionFragment() {}
         @Override
         public void onAttach(@NonNull Activity activity) {
             mainActivity = (MainActivity) activity;
             super.onAttach(activity);
         }
-
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.fragment_main_chat, container, false);
@@ -1051,51 +868,34 @@ private EditText newmsg;
             ListView chatlog = rootView.findViewById(R.id.channel_im_listview);
             chatlog.setTranscriptMode(ListView.TRANSCRIPT_MODE_NORMAL);
             chatlog.setAdapter(mainActivity.getTextMessagesAdapter());
-
             Button sendBtn = rootView.findViewById(R.id.channel_im_sendbtn);
             sendBtn.setOnClickListener(arg0 -> sendMsgToChannel());
             return rootView;
         }
-
         private void sendMsgToChannel() {
             String text = newmsg.getText().toString();
-            if (text.isEmpty())
-                return;
-
+            if (text.isEmpty()) return;
             MyTextMessage textmsg = new MyTextMessage();
             textmsg.nMsgType = TextMsgType.MSGTYPE_CHANNEL;
             textmsg.nChannelID = mainActivity.getClient().getMyChannelID();
             textmsg.szMessage = text;
-
             int cmdid = 0;
-            for (MyTextMessage m : textmsg.split()) {
-                cmdid = mainActivity.getClient().doTextMessage(m);
-            }
-
+            for (MyTextMessage m : textmsg.split()) cmdid = mainActivity.getClient().doTextMessage(m);
             if (cmdid > 0) {
                 mainActivity.activecmds.put(cmdid, CmdComplete.CMD_COMPLETE_TEXTMSG);
                 newmsg.setText("");
-            }
-            else {
-                Toast.makeText(mainActivity, getResources().getString(R.string.text_con_cmderr),
-                Toast.LENGTH_LONG).show();
-            }
+            } else Toast.makeText(mainActivity, getResources().getString(R.string.text_con_cmderr), Toast.LENGTH_LONG).show();
         }
-
     }
 
     public static class VidcapSectionFragment extends Fragment {
         MainActivity mainActivity;
-
-        public VidcapSectionFragment() {
-        }
-
+        public VidcapSectionFragment() {}
         @Override
         public void onAttach(@NonNull Activity activity) {
             mainActivity = (MainActivity) activity;
             super.onAttach(activity);
         }
-
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             return inflater.inflate(R.layout.fragment_main_vidcap, container, false);
@@ -1104,22 +904,16 @@ private EditText newmsg;
 
     public static class MediaSectionFragment extends Fragment {
         MainActivity mainActivity;
-
-        public MediaSectionFragment() {
-        }
-
+        public MediaSectionFragment() {}
         @Override
         public void onAttach(@NonNull Activity activity) {
             mainActivity = (MainActivity) activity;
             super.onAttach(activity);
         }
-
         @Override
-        public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                                 Bundle savedInstanceState) {
+        public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.fragment_main_media, container, false);
             mainActivity.accessibilityAssistant.registerPage(rootView, SectionsPagerAdapter.MEDIA_PAGE);
-
             ExpandableListView mediaview = rootView.findViewById(R.id.media_elist_view);
             mediaview.setAdapter(mainActivity.getMediaAdapter());
             return rootView;
@@ -1127,7 +921,6 @@ private EditText newmsg;
     }
 
     public static class FilesSectionFragment extends ListFragment {
-
         @Override
         public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
             MainActivity mainActivity = (MainActivity) getActivity();
@@ -1136,190 +929,8 @@ private EditText newmsg;
             super.onViewCreated(view, savedInstanceState);
         }
     }
-//=====
-class ChannelListAdapter extends BaseAdapter {
-        private static final int PARENT_CHANNEL_VIEW_TYPE = 0, CHANNEL_VIEW_TYPE = 1, USER_VIEW_TYPE = 2, INFO_VIEW_TYPE = 3, VIEW_TYPE_COUNT = 4;
-        private final LayoutInflater inflater;
-        private final UserProfileManager profileManager; // Field Baru
-        
-        Vector<Channel> subchannels = new Vector<>();
-        Vector<Channel> stickychannels = new Vector<>();
-        Vector<User> currentusers = new Vector<>();
-
-        // Constructor Baru
-        ChannelListAdapter(Context context, UserProfileManager mgr) {
-            inflater = LayoutInflater.from(context);
-            this.profileManager = mgr;
-        }
-
-        @Override public void notifyDataSetChanged() {
-            subchannels.clear(); stickychannels.clear(); currentusers.clear();
-            int chanid = curchannel != null ? curchannel.nChannelID : getClient().getRootChannelID();
-            if(curchannel != null) {
-                subchannels = Utils.getSubChannels(chanid, getService().getChannels());
-                stickychannels = Utils.getStickyChannels(chanid, getService().getChannels());
-                currentusers = Utils.getUsers(chanid, getService().getUsers());
-            } else {
-                Channel root = getService().getChannels().get(chanid);
-                if(root != null) subchannels.add(root);
-            }
-            Collections.sort(subchannels, (c1, c2) -> c1.szName.compareToIgnoreCase(c2.szName));
-            Collections.sort(stickychannels, (c1, c2) -> c1.szName.compareToIgnoreCase(c2.szName));
-            Collections.sort(currentusers, (u1, u2) -> {
-                if (prefs.get("movetalk_checkbox", true)) {
-                    boolean v1 = (u1.uUserState & UserState.USERSTATE_VOICE) != 0;
-                    boolean v2 = (u2.uUserState & UserState.USERSTATE_VOICE) != 0;
-                    if (v1 && !v2) return -1; if (!v1 && v2) return 1;
-                }
-                return Utils.getDisplayName(getBaseContext(), u1).compareToIgnoreCase(Utils.getDisplayName(getBaseContext(), u2));
-            });
-            super.notifyDataSetChanged();
-        }
-
-        @Override public int getCount() {
-            int count = currentusers.size() + subchannels.size() + stickychannels.size();
-            if ((curchannel != null) && (curchannel.nParentID > 0)) count++;
-            return count;
-        }
-
-        @Override public Object getItem(int position) {
-            if (position < stickychannels.size()) return stickychannels.get(position);
-            position -= stickychannels.size();
-            if (position < currentusers.size()) return currentusers.get(position);
-            position -= currentusers.size();
-            if ((curchannel != null) && (curchannel.nParentID > 0)) {
-                if(position == 0) {
-                    Channel parent = getService().getChannels().get(curchannel.nParentID);
-                    return parent != null ? parent : new Channel();
-                }
-                position--; 
-            }
-            return subchannels.get(position);
-        }
-
-        @Override public long getItemId(int position) { return position; }
-
-        @Override public int getItemViewType(int position) {
-            if (position < stickychannels.size()) return INFO_VIEW_TYPE;
-            position -= stickychannels.size();
-            if (position < currentusers.size()) return USER_VIEW_TYPE;
-            position -= currentusers.size();
-            if ((curchannel != null) && (curchannel.nParentID > 0)) {
-                if (position == 0) return PARENT_CHANNEL_VIEW_TYPE;
-                position--; 
-            }
-            return CHANNEL_VIEW_TYPE;
-        }
-
-        @Override public int getViewTypeCount() { return VIEW_TYPE_COUNT; }
-
-        @Override public View getView(int position, View convertView, ViewGroup parent) {
-            Object item = getItem(position);
-            if(item instanceof Channel channel) {
-                switch (getItemViewType(position)) {
-                    case PARENT_CHANNEL_VIEW_TYPE:
-                        if (convertView == null || convertView.findViewById(R.id.parentname) == null)
-                            convertView = inflater.inflate(R.layout.item_channel_back, parent, false);
-                        break;
-                    case CHANNEL_VIEW_TYPE:
-                        if (convertView == null || convertView.findViewById(R.id.channelname) == null)
-                            convertView = inflater.inflate(R.layout.item_channel, parent, false);
-                        ImageView chanicon = convertView.findViewById(R.id.channelicon);
-                        TextView name = convertView.findViewById(R.id.channelname);
-                        TextView topic = convertView.findViewById(R.id.chantopic);
-                        Button join = convertView.findViewById(R.id.join_btn);
-                        int icon_resource = channel.bPassword ? R.drawable.channel_pink : R.drawable.channel_orange;
-                        chanicon.setImageResource(icon_resource);
-                        chanicon.setContentDescription(channel.bPassword ? getString(R.string.text_passwdprot) : null);
-                        chanicon.setImportantForAccessibility(channel.bPassword ? View.IMPORTANT_FOR_ACCESSIBILITY_YES : View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-                        if(channel.nParentID == 0) {
-                            ServerProperties srvprop = new ServerProperties();
-                            getClient().getServerProperties(srvprop);
-                            name.setText(srvprop.szServerName);
-                        } else name.setText(channel.szName);
-                        topic.setText(channel.szTopic);
-                        join.setOnClickListener(v -> { if (v.getId() == R.id.join_btn) joinChannel(channel); });
-                        join.setAccessibilityDelegate(accessibilityAssistant);
-                        join.setEnabled(channel.nChannelID != getClient().getMyChannelID());
-                        if (channel.nMaxUsers > 0) {
-                            int pop = Utils.getUsers(channel.nChannelID, getService().getUsers()).size();
-                            ((TextView)convertView.findViewById(R.id.population)).setText(pop > 0 ? String.format(Locale.ROOT, "(%d)", pop) : "");
-                        }
-                        break;
-                    case INFO_VIEW_TYPE:
-                        if (convertView == null || convertView.findViewById(R.id.titletext) == null)
-                            convertView = inflater.inflate(R.layout.item_info, parent, false);
-                        ((TextView)convertView.findViewById(R.id.titletext)).setText(channel.szName);
-                        ((TextView)convertView.findViewById(R.id.infodetails)).setText(channel.szTopic);
-                        break;
-                }
-            } else if(item instanceof User user) {
-                if (convertView == null || convertView.findViewById(R.id.nickname) == null)
-                    convertView = inflater.inflate(R.layout.item_user, parent, false);
-                
-                ImageView usericon = convertView.findViewById(R.id.usericon);
-                TextView nickname = convertView.findViewById(R.id.nickname);
-                TextView status = convertView.findViewById(R.id.status);
-                String name = Utils.getDisplayName(getBaseContext(), user);
-                nickname.setText(name);
-                status.setText(user.szStatusMsg);
-                
-                boolean selected = userIDS.contains(user.nUserID);
-                boolean isOperator = getClient().isChannelOperator(user.nUserID, user.nChannelID);
-                boolean isAdmin = (user.uUserType & UserType.USERTYPE_ADMIN) != 0;
-                boolean talking = (user.uUserState & UserState.USERSTATE_VOICE) != 0;
-                boolean female = (user.nStatusMode & TeamTalkConstants.STATUSMODE_FEMALE) != 0;
-                boolean neutral = (user.nStatusMode & TeamTalkConstants.STATUSMODE_NEUTRAL) != 0;
-                boolean away = (user.nStatusMode & TeamTalkConstants.STATUSMODE_AWAY) != 0;
-                
-                if(user.nUserID == getService().getTTInstance().getMyUserID()) talking = getService().isVoiceTransmitting();
-                
-                int icon_resource;
-                if (talking) icon_resource = female ? R.drawable.woman_green : R.drawable.man_green;
-                else icon_resource = female ? (away ? R.drawable.woman_orange : R.drawable.woman_blue) : (away ? R.drawable.man_orange : R.drawable.man_blue);
-
-                String gender = female ? " 👩 " : neutral ? "  " : " 👨 ";
-                String desc = (selected ? getString(R.string.user_state_selected) : "") + " " + 
-                              (talking ? getString(R.string.user_state_now_speaking, name) : name) + gender + 
-                              (isOperator ? getString(R.string.user_state_operator) : "") + 
-                              (isAdmin ? getString(R.string.user_state_admin) : "");
-                nickname.setContentDescription(desc.trim());
-                status.setContentDescription(away ? getString(R.string.user_state_away) + " " + user.szStatusMsg : null);
-
-                // === LOGIKA FOTO PROFIL YANG SUDAH DIBERSIHKAN ===
-                boolean isMyself = (user.nUserID == getService().getTTInstance().getMyUserID());
-                if (isMyself) {
-                    FirebaseUser fbUser = FirebaseAuth.getInstance().getCurrentUser();
-                    if (fbUser != null && fbUser.getPhotoUrl() != null) {
-                        Glide.with(MainActivity.this).load(fbUser.getPhotoUrl()).circleCrop().placeholder(icon_resource).error(icon_resource).into(usericon);
-                    } else usericon.setImageResource(icon_resource);
-                } else {
-                    // INI KUNCINYA: Panggil Manager, tidak ada query Firestore di sini lagi!
-                    profileManager.loadAvatar(user.szNickname, usericon, icon_resource);
-                }
-                // ================================================
-
-                usericon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-                Button sndmsg = convertView.findViewById(R.id.msg_btn);
-                sndmsg.setOnClickListener(v -> {
-                    if (v.getId() == R.id.msg_btn) {
-                        Intent intent = new Intent(MainActivity.this, TextMessageActivity.class);
-                        startActivity(intent.putExtra(TextMessageActivity.EXTRA_USERID, user.nUserID));
-                    }
-                });
-                sndmsg.setAccessibilityDelegate(accessibilityAssistant);
-            } 
-            
-            convertView.setOnClickListener(view -> onChannelItemClick(item));
-            convertView.setOnLongClickListener(view -> onChannelItemLongClick(item, view));
-            convertView.setAccessibilityDelegate(accessibilityAssistant);
-            return convertView;
-        } 
-    }
-//==============
 
     void createStatusTimer() {
-        
         final TextView connection = findViewById(R.id.connectionstat_textview);
         final TextView ping = findViewById(R.id.pingstat_textview);
         final TextView total = findViewById(R.id.totalstat_textview);
@@ -1327,81 +938,47 @@ class ChannelListAdapter extends BaseAdapter {
         
         if(stats_timer == null) {
             stats_timer = new CountDownTimer(10000, 1000) {
-                
                 ClientStatistics prev_stats;
-                
                 public void onTick(long millisUntilFinished) {
-                
-                    if (accessibilityAssistant.isUiUpdateDiscouraged())
-                        return;
+                    if (accessibilityAssistant.isUiUpdateDiscouraged()) return;
                     filesAdapter.performPendingUpdate();
-
                     String con = getString(R.string.stat_offline);
                     int con_color = Color.RED;
                     int flags = getClient().getFlags();
-                    if ((flags & ClientFlag.CLIENT_CONNECTING) == ClientFlag.CLIENT_CONNECTING) {
-                        con = getString(R.string.stat_connecting);
-                    }
-                    else if ((flags & ClientFlag.CLIENT_AUTHORIZED) == ClientFlag.CLIENT_CLOSED) {
-                        // indicate 'offline' if not authorized
-                        con = getString(R.string.stat_unauthorized);
-                    }
+                    if ((flags & ClientFlag.CLIENT_CONNECTING) == ClientFlag.CLIENT_CONNECTING) con = getString(R.string.stat_connecting);
+                    else if ((flags & ClientFlag.CLIENT_AUTHORIZED) == ClientFlag.CLIENT_CLOSED) con = getString(R.string.stat_unauthorized);
                     else if ((flags & ClientFlag.CLIENT_AUTHORIZED) == ClientFlag.CLIENT_AUTHORIZED) {
                         con = getString(R.string.stat_online);
                         con_color = Color.GREEN;
                     }
-                    else if((flags & ClientFlag.CLIENT_CONNECTING) == ClientFlag.CLIENT_CONNECTING) {
-                        con = getString(R.string.stat_connecting);
-                    }
-                    
                     connection.setText(getString(R.string.label_connection) + " " + con);
                     connection.setTextColor(con_color);
-
                     ClientStatistics stats = new ClientStatistics();
-                    if(!getClient().getClientStatistics(stats))
-                        return;
-                    
-                    if(prev_stats == null)
-                        prev_stats = stats;
-                    
+                    if(!getClient().getClientStatistics(stats)) return;
+                    if(prev_stats == null) prev_stats = stats;
                     long totalrx = stats.nUdpBytesRecv - prev_stats.nUdpBytesRecv;
                     long totaltx = stats.nUdpBytesSent - prev_stats.nUdpBytesSent;
-
                     String str;
                     if(stats.nUdpPingTimeMs >= 0) {
                         str = String.format(Locale.ROOT, "%1$d", stats.nUdpPingTimeMs);
                         ping.setText(getString(R.string.label_ping) + " " + str);
-                        
-                        if(stats.nUdpPingTimeMs > 250) {
-                            ping.setTextColor(Color.RED);
-                        }
-                        else {
-                            ping.setTextColor(defcolor);
-                        }
+                        if(stats.nUdpPingTimeMs > 250) ping.setTextColor(Color.RED);
+                        else ping.setTextColor(defcolor);
                     }
-
                     str = String.format(Locale.ROOT, "%1$d/%2$d KB", totalrx/ 1024, totaltx / 1024);
                     total.setText(getString(R.string.label_rxtx) + " " + str);
-                    
                     prev_stats = stats;
                 }
-
-                public void onFinish() {
-                    start();
-                }
+                public void onFinish() { start(); }
             }.start();
         }
-
     }
 
     private void onChannelItemClick(Object item) {
         if(item instanceof User user) {
-            Intent intent = new Intent(this, UserPropActivity.class);
-            // TODO: check 'curchannel' for null
-            startActivityForResult(intent.putExtra(UserPropActivity.EXTRA_USERID, user.nUserID),
-                                   REQUEST_EDITUSER);
-        }
-        else if(item instanceof Channel channel) {
+            startActivityForResult(new Intent(this, UserPropActivity.class)
+                .putExtra(UserPropActivity.EXTRA_USERID, user.nUserID), REQUEST_EDITUSER);
+        } else if(item instanceof Channel channel) {
             setCurrentChannel((channel.nChannelID > 0) ? channel : null);
             channelsAdapter.notifyDataSetChanged();
         }
@@ -1414,10 +991,8 @@ class ChannelListAdapter extends BaseAdapter {
     private boolean onChannelItemLongClick(Object item, View v) {
         UserAccount myuseraccount = new UserAccount();
         getClient().getMyUserAccount(myuseraccount);
-
         User everyone = new User();
         everyone.nUserID = Constants.TT_CLASSROOM_FREEFORALL;
-
         boolean banRight = (myuseraccount.uUserRights & UserRight.USERRIGHT_BAN_USERS) != UserRight.USERRIGHT_NONE;
         boolean moveRight = (myuseraccount.uUserRights & UserRight.USERRIGHT_MOVE_USERS) != UserRight.USERRIGHT_NONE;
         boolean kickRight = (myuseraccount.uUserRights & UserRight.USERRIGHT_KICK_USERS) != UserRight.USERRIGHT_NONE;
@@ -1426,7 +1001,6 @@ class ChannelListAdapter extends BaseAdapter {
 
         if (item instanceof User) {
             selectedUser = (User) item;
-            // operator of a channel can also kick users
             boolean operatorRight = getClient().isChannelOperator(myuserid, selectedUser.nChannelID);
             PopupMenu userActions = new PopupMenu(this, v);
             userActions.setOnMenuItemClickListener(this);
@@ -1470,13 +1044,10 @@ class ChannelListAdapter extends BaseAdapter {
     @Override
     public boolean onMenuItemClick(MenuItem item) {
         AlertDialog.Builder alert = new AlertDialog.Builder(this);
-
         UserAccount myuseraccount = new UserAccount();
         getClient().getMyUserAccount(myuseraccount);
-
         User everyone = new User();
         everyone.nUserID = Constants.TT_CLASSROOM_FREEFORALL;
-
         int itemId = item.getItemId();
         if (itemId == R.id.action_banchan) {
             alert.setMessage(getString(R.string.ban_confirmation, selectedUser.szNickname));
@@ -1497,12 +1068,11 @@ class ChannelListAdapter extends BaseAdapter {
         } else if (itemId == R.id.action_edit) {
             editChannelProperties(selectedChannel);
         } else if (itemId == R.id.action_edituser) {
-            Intent intent = new Intent(this, UserPropActivity.class);
-            startActivityForResult(intent.putExtra(UserPropActivity.EXTRA_USERID, selectedUser.nUserID),
-                                   REQUEST_EDITUSER);
+            startActivityForResult(new Intent(this, UserPropActivity.class)
+                .putExtra(UserPropActivity.EXTRA_USERID, selectedUser.nUserID), REQUEST_EDITUSER);
         } else if (itemId == R.id.action_message) {
-            Intent intent = new Intent(MainActivity.this, TextMessageActivity.class);
-            startActivity(intent.putExtra(TextMessageActivity.EXTRA_USERID, selectedUser.nUserID));
+            startActivity(new Intent(MainActivity.this, TextMessageActivity.class)
+                .putExtra(TextMessageActivity.EXTRA_USERID, selectedUser.nUserID));
         } else if (itemId == R.id.action_kickchan) {
             alert.setMessage(getString(R.string.kick_confirmation, selectedUser.szNickname));
             alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> getClient().doKickUser(selectedUser.nUserID, selectedUser.nChannelID));
@@ -1527,16 +1097,11 @@ class ChannelListAdapter extends BaseAdapter {
                 alert.show();
             }
         } else if (itemId == R.id.action_move) {
-            for (Integer userID : userIDS) {
-                getClient().doMoveUser(userID, selectedChannel.nChannelID);
-            }
+            for (Integer userID : userIDS) getClient().doMoveUser(userID, selectedChannel.nChannelID);
             userIDS.clear();
         } else if (itemId == R.id.action_select) {
-            if (userIDS.contains(selectedUser.nUserID)) {
-                userIDS.remove((Integer) selectedUser.nUserID);
-            } else {
-                userIDS.add(selectedUser.nUserID);
-            }
+            if (userIDS.contains(selectedUser.nUserID)) userIDS.remove((Integer) selectedUser.nUserID);
+            else userIDS.add(selectedUser.nUserID);
             accessibilityAssistant.lockEvents();
             channelsAdapter.notifyDataSetChanged();
             accessibilityAssistant.unlockEvents();
@@ -1564,36 +1129,27 @@ class ChannelListAdapter extends BaseAdapter {
             alert.setMessage(getString(R.string.channel_remove_confirmation, selectedChannel.szName));
             alert.setPositiveButton(android.R.string.yes, (dialog, whichButton) -> {
                 if (getClient().doRemoveChannel(selectedChannel.nChannelID) <= 0)
-                    Toast.makeText(MainActivity.this,
-                                   getString(R.string.err_channel_remove,
-                                             selectedChannel.szName),
-                                   Toast.LENGTH_LONG).show();
+                    Toast.makeText(MainActivity.this, getString(R.string.err_channel_remove, selectedChannel.szName), Toast.LENGTH_LONG).show();
             });
             alert.setNegativeButton(android.R.string.no, null);
             alert.show();
-        } else {
-            return false;
-        }
+        } else return false;
         return true;
     }
 
     @SuppressWarnings("deprecation")
     private void adjustSoundSystem() {
-        if (audioManager.isBluetoothA2dpOn())
-            return;
+        if (audioManager.isBluetoothA2dpOn()) return;
         boolean voiceProcessing = prefs.get(Preferences.PREF_SOUNDSYSTEM_VOICEPROCESSING, false);
-        audioManager.setMode(voiceProcessing ?
-                AudioManager.MODE_IN_COMMUNICATION : AudioManager.MODE_NORMAL);
-        if (voiceProcessing)
-            audioManager.setSpeakerphoneOn(prefs.get(Preferences.PREF_SOUNDSYSTEM_SPEAKERPHONE, false) && !audioManager.isWiredHeadsetOn());
+        audioManager.setMode(voiceProcessing ? AudioManager.MODE_IN_COMMUNICATION : AudioManager.MODE_NORMAL);
+        if (voiceProcessing) audioManager.setSpeakerphoneOn(prefs.get(Preferences.PREF_SOUNDSYSTEM_SPEAKERPHONE, false) && !audioManager.isWiredHeadsetOn());
     }
 
     private void adjustMuteButton(ImageButton btn) {
         if (getService().getCurrentMuteState()) {
             btn.setImageResource(R.drawable.mute_blue);
             btn.setContentDescription(getString(R.string.speaker_unmute));
-        }
-        else {
+        } else {
             btn.setImageResource(R.drawable.speaker_blue);
             btn.setContentDescription(getString(R.string.speaker_mute));
         }
@@ -1602,7 +1158,6 @@ class ChannelListAdapter extends BaseAdapter {
     private void adjustVoxState(boolean voiceActivationEnabled, int level) {
         ImageButton voxSwitch = findViewById(R.id.voxSwitch);
         TextView micLevel = findViewById(R.id.miclevel_text);
-
         if (voiceActivationEnabled) {
             micLevel.setText(level + "%");
             micLevel.setContentDescription(getString(R.string.vox_level_description, micLevel.getText()));
@@ -1610,8 +1165,7 @@ class ChannelListAdapter extends BaseAdapter {
             voxSwitch.setContentDescription(getString(R.string.voice_activation_off));
             ((SeekBar) findViewById(R.id.mic_gainSeekBar)).setProgress(getClient().getVoiceActivationLevel());
             findViewById(R.id.mic_gainSeekBar).setContentDescription(getString(R.string.voxlevel));
-        }
-        else {
+        } else {
             micLevel.setText(Utils.refVolumeToPercent(level) + "%");
             micLevel.setContentDescription(getString(R.string.mic_gain_description, micLevel.getText()));
             voxSwitch.setImageResource(R.drawable.mic_green);
@@ -1623,80 +1177,47 @@ class ChannelListAdapter extends BaseAdapter {
 
     private void adjustTxState(boolean txEnabled) {
         accessibilityAssistant.lockEvents();
-
         findViewById(R.id.transmit_voice).setBackgroundColor(txEnabled ? Color.GREEN : Color.RED);
         findViewById(R.id.transmit_voice).setContentDescription(txEnabled ? getString(R.string.tx_on) : getString(R.string.tx_off));
-
-        if ((curchannel != null) && (getClient().getMyChannelID() == curchannel.nChannelID))
-            channelsAdapter.notifyDataSetChanged();
-
+        if ((curchannel != null) && (getClient().getMyChannelID() == curchannel.nChannelID)) channelsAdapter.notifyDataSetChanged();
         accessibilityAssistant.unlockEvents();
     }
 
     private void adjustVoiceGain() {
-
-        // if channel has audio configuration enabled then we should switch to AGC
-
-        boolean showMicSeekBar = mychannel == null || !mychannel.audiocfg.bEnableAGC ||  getService().isVoiceActivationEnabled();
-
+        boolean showMicSeekBar = mychannel == null || !mychannel.audiocfg.bEnableAGC || getService().isVoiceActivationEnabled();
         findViewById(R.id.mic_gainSeekBar).setVisibility(showMicSeekBar ? View.VISIBLE : View.GONE);
     }
 
-    private interface OnButtonInteractionListener extends OnTouchListener, OnClickListener {
-    }
+    private interface OnButtonInteractionListener extends OnTouchListener, OnClickListener {}
 
     private void setupButtons() {
-
         final Button tx_btn = findViewById(R.id.transmit_voice);
         tx_btn.setAccessibilityDelegate(accessibilityAssistant);
-
         OnButtonInteractionListener txButtonListener = new OnButtonInteractionListener() {
-
             boolean tx_state = false;
             long tx_down_start = 0;
-
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 boolean tx = event.getAction() != MotionEvent.ACTION_UP;
-
                 if(tx != tx_state) {
-
                     if(!tx) {
-                        if(System.currentTimeMillis() - tx_down_start < 800) {
-                            tx = true;
-                            tx_down_start = 0;
-                        }
-                        else {
-                            tx_down_start = System.currentTimeMillis();
-                        }
-
-                        //Log.i(TAG, "TX is now: " + tx + " diff " + (System.currentTimeMillis() - tx_down_start));
+                        if(System.currentTimeMillis() - tx_down_start < 800) { tx = true; tx_down_start = 0; }
+                        else tx_down_start = System.currentTimeMillis();
                     }
-
-                    if (getService().isVoiceActivationEnabled())
-                        getService().enableVoiceActivation(false);
+                    if (getService().isVoiceActivationEnabled()) getService().enableVoiceActivation(false);
                     getService().enableVoiceTransmission(tx);
                 }
                 tx_state = tx;
                 return true;
             }
-
             @Override
             public void onClick(View v) {
-                if(System.currentTimeMillis() - tx_down_start < 800) {
-                    tx_state = true;
-                    tx_down_start = 0;
-                }
-                else {
-                    tx_state = false;
-                    tx_down_start = System.currentTimeMillis();
-                }
-                if (getService().isVoiceActivationEnabled())
-                    getService().enableVoiceActivation(false);
+                if(System.currentTimeMillis() - tx_down_start < 800) { tx_state = true; tx_down_start = 0; }
+                else { tx_state = false; tx_down_start = System.currentTimeMillis(); }
+                if (getService().isVoiceActivationEnabled()) getService().enableVoiceActivation(false);
                 getService().enableVoiceTransmission(tx_state);
             }
         };
-
         tx_btn.setOnTouchListener(txButtonListener);
         
         final SeekBar masterSeekBar = findViewById(R.id.master_volSeekBar);
@@ -1712,15 +1233,14 @@ class ChannelListAdapter extends BaseAdapter {
                 if (seekBar == masterSeekBar) {
                     if (getService().isMute()) {
                         getService().setMute(false);
-                        ImageButton speakerBtn = findViewById(R.id.speakerBtn);
-                        adjustMuteButton(speakerBtn);
+                        adjustMuteButton(findViewById(R.id.speakerBtn));
                     }
                     int outputVolume = Utils.refVolume(progress);
                     getClient().setSoundOutputVolume(outputVolume);
                     prefs.put(Preferences.PREF_SOUNDSYSTEM_MASTERVOLUME, outputVolume);
                     volLevel.setText(progress + "%");
                     volLevel.setContentDescription(getString(R.string.speaker_volume_description, volLevel.getText()));
-            }     else if (seekBar == micSeekBar) {
+                } else if (seekBar == micSeekBar) {
                     if (getService().isVoiceActivationEnabled()) {
                         int voxLevel = progress;
                         getClient().setVoiceActivationLevel(voxLevel);
@@ -1735,33 +1255,21 @@ class ChannelListAdapter extends BaseAdapter {
                         micLevel.setContentDescription(getString(R.string.mic_gain_description, micLevel.getText()));
                     }
                 }
-        }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
             }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         };
-
         masterSeekBar.setOnSeekBarChangeListener(volListener);
         micSeekBar.setOnSeekBarChangeListener(volListener);
 
-        if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) && accessibilityAssistant.isServiceActive()) {
-            tx_btn.setOnClickListener(txButtonListener);
-        }
+        if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) && accessibilityAssistant.isServiceActive()) tx_btn.setOnClickListener(txButtonListener);
 
         ImageButton speakerBtn = findViewById(R.id.speakerBtn);
         speakerBtn.setOnClickListener(v -> {
             if ((mConnection != null) && mConnection.isBound()) {
                 getService().setMute(!getService().isMute());
                 adjustMuteButton((ImageButton) v);
-
-                int level = getService().isMute() ?
-                    0 :
-                    Utils.refVolumeToPercent(getClient().getSoundOutputVolume());
+                int level = getService().isMute() ? 0 : Utils.refVolumeToPercent(getClient().getSoundOutputVolume());
                 volLevel.setText(level + "%");
                 volLevel.setContentDescription(getString(R.string.speaker_volume_description, volLevel.getText()));
             }
@@ -1770,56 +1278,40 @@ class ChannelListAdapter extends BaseAdapter {
         ImageButton voxSwitch = findViewById(R.id.voxSwitch);
         voxSwitch.setOnClickListener(v -> {
             if ((mConnection != null) && mConnection.isBound()) {
-                if (getService().isVoiceTransmissionEnabled())
-                    getService().enableVoiceTransmission(false);
+                if (getService().isVoiceTransmissionEnabled()) getService().enableVoiceTransmission(false);
                 getService().enableVoiceActivation(!getService().isVoiceActivationEnabled());
-
                 adjustVoiceGain();
             }
         });
     }
-    //=======BATAS BAGIAN 3==
     
-///BAGIIAN 4========
     private void initializeTeamTalkService(TeamTalkService service) {
-
         this.users = new HashMap<>(service.getUsers());
-
         int mychanid = getClient().getMyChannelID();
         if (mychanid > 0) {
             setCurrentChannel(service.getChannels().get(mychanid));
+            setMyChannel(service.getChannels().get(mychanid));
         }
-
-        setMyChannel(service.getChannels().get(mychanid));
-
         mSectionsPagerAdapter.onPageSelected(mViewPager.getCurrentItem());
-
         channelsAdapter.notifyDataSetChanged();
-
         textmsgAdapter.setTextMessages(service.getChatLogTextMsgs());
         textmsgAdapter.setMyUserID(getClient().getMyUserID());
         textmsgAdapter.notifyDataSetChanged();
-
         mediaAdapter.setTeamTalkService(service);
         mediaAdapter.notifyDataSetChanged();
-
         filesAdapter.setTeamTalkService(service);
         filesAdapter.update(mychanid);
 
         int outsndid = SoundDeviceConstants.TT_SOUNDDEVICE_ID_OPENSLES_DEFAULT;
-        // outsndid |= SoundDeviceConstants.TT_SOUNDDEVICE_ID_SHARED_FLAG;
-
         int flags = getClient().getFlags();
-        if (((flags & ClientFlag.CLIENT_SNDOUTPUT_READY) == 0) &&
-                !getClient().initSoundOutputDevice(outsndid))
+        if (((flags & ClientFlag.CLIENT_SNDOUTPUT_READY) == 0) && !getClient().initSoundOutputDevice(outsndid))
             Toast.makeText(this, R.string.err_init_sound_output, Toast.LENGTH_LONG).show();
 
         if (!restarting) {
             service.setMute(false);
             service.enableVoiceTransmission(false);
             service.enableVoiceActivation(false);
-            if (Permissions.READ_PHONE_STATE.request(this))
-                service.enablePhoneCallReaction();
+            if (Permissions.READ_PHONE_STATE.request(this)) service.enablePhoneCallReaction();
         }
 
         service.getEventHandler().registerOnConnectionLostListener(this, true);
@@ -1840,17 +1332,12 @@ class ChannelListAdapter extends BaseAdapter {
         service.getEventHandler().registerOnCmdFileRemove(this, true);
         service.getEventHandler().registerOnUserStateChange(this, true);
         service.getEventHandler().registerOnVoiceActivation(this, true);
-
         service.setOnVoiceTransmissionToggleListener(this);
-
         adjustSoundSystem();
 
-        if (prefs.get(Preferences.PREF_SOUNDSYSTEM_BLUETOOTH_HEADSET, false)
-                && Permissions.BLUETOOTH.request(this))
+        if (prefs.get(Preferences.PREF_SOUNDSYSTEM_BLUETOOTH_HEADSET, false) && Permissions.BLUETOOTH.request(this))
             service.watchBluetoothHeadset();
-
-        if (Permissions.WAKE_LOCK.request(this))
-            wakeLock.acquire();
+        if (Permissions.WAKE_LOCK.request(this)) wakeLock.acquire();
 
         int mastervol = prefs.get(Preferences.PREF_SOUNDSYSTEM_MASTERVOLUME, SoundLevel.SOUND_VOLUME_DEFAULT);
         int gain = prefs.get(Preferences.PREF_SOUNDSYSTEM_MICROPHONEGAIN, SoundLevel.SOUND_GAIN_DEFAULT);
@@ -1858,13 +1345,9 @@ class ChannelListAdapter extends BaseAdapter {
         boolean voxState = service.isVoiceActivationEnabled();
         boolean txState = service.isVoiceTransmitting();
 
-        // only set volume and gain if tt-instance hasn't already been configured
-        if (getClient().getSoundOutputVolume() != mastervol)
-            getClient().setSoundOutputVolume(mastervol);
-        if (getClient().getSoundInputGainLevel() != gain)
-            getClient().setSoundInputGainLevel(gain);
-        if (getClient().getVoiceActivationLevel() != voxlevel)
-            getClient().setVoiceActivationLevel(voxlevel);
+        if (getClient().getSoundOutputVolume() != mastervol) getClient().setSoundOutputVolume(mastervol);
+        if (getClient().getSoundInputGainLevel() != gain) getClient().setSoundInputGainLevel(gain);
+        if (getClient().getVoiceActivationLevel() != voxlevel) getClient().setVoiceActivationLevel(voxlevel);
 
         adjustMuteButton(findViewById(R.id.speakerBtn));
         adjustVoxState(voxState, voxState ? voxlevel : getClient().getSoundInputGainLevel());
@@ -1873,133 +1356,84 @@ class ChannelListAdapter extends BaseAdapter {
         final SeekBar masterSeekBar = findViewById(R.id.master_volSeekBar);
         final SeekBar micSeekBar = findViewById(R.id.mic_gainSeekBar);
         masterSeekBar.setProgress(Utils.refVolumeToPercent(getClient().getSoundOutputVolume()));
-        if (service.isVoiceActivationEnabled()) {
-            micSeekBar.setProgress(getClient().getVoiceActivationLevel());
-        } else {
-            micSeekBar.setProgress(Utils.refVolumeToPercent(getClient().getSoundInputGainLevel()));
-        }
+        if (service.isVoiceActivationEnabled()) micSeekBar.setProgress(getClient().getVoiceActivationLevel());
+        else micSeekBar.setProgress(Utils.refVolumeToPercent(getClient().getSoundInputGainLevel()));
+        
         TextView volLevel = findViewById(R.id.vollevel_text);
         volLevel.setText(Utils.refVolumeToPercent(mastervol) + "%");
         volLevel.setContentDescription(getString(R.string.speaker_volume_description, volLevel.getText()));
     }
 
     private void closeTeamTalkService(TeamTalkService service) {
-        if (wakeLock.isHeld())
-            wakeLock.release();
+        if (wakeLock.isHeld()) wakeLock.release();
         service.setOnVoiceTransmissionToggleListener(null);
-
         service.getEventHandler().unregisterListener(this);
-
         filesAdapter.setTeamTalkService(null);
         mediaAdapter.clearTeamTalkService(service);
     }
 
     @Override
-    public void onServiceConnected(TeamTalkService service) {
-        initializeTeamTalkService(service);
-    }
+    public void onServiceConnected(TeamTalkService service) { initializeTeamTalkService(service); }
+    @Override
+    public void onServiceDisconnected(TeamTalkService service) { closeTeamTalkService(service); }
+
+    TeamTalkService getService() { return mConnection.getService(); }
+    TeamTalkBase getClient() { return getService().getTTInstance(); }
 
     @Override
-    public void onServiceDisconnected(TeamTalkService service) {
-        closeTeamTalkService(service);
-    }
-
-    TeamTalkService getService() {
-        return mConnection.getService();
-    }
-
-    TeamTalkBase getClient() {
-        return getService().getTTInstance();
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           @NonNull String[] permissions, @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         Permissions granted = Permissions.onRequestResult(this, requestCode, grantResults);
         if (granted == null) {
             granted = Permissions.fromRequestCode(requestCode);
-            if ((granted != Permissions.READ_MEDIA_IMAGES) &&
-                (granted != Permissions.READ_MEDIA_VIDEO) &&
-                (granted != Permissions.READ_MEDIA_AUDIO))
-                return;
+            if ((granted != Permissions.READ_MEDIA_IMAGES) && (granted != Permissions.READ_MEDIA_VIDEO) && (granted != Permissions.READ_MEDIA_AUDIO)) return;
         }
         switch (granted) {
             case READ_EXTERNAL_STORAGE:
             case READ_MEDIA_IMAGES:
             case READ_MEDIA_VIDEO:
             case READ_MEDIA_AUDIO:
-                if ((Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) || areMediaPermissionsComplete())
-                    fileSelectionStart();
+                if ((Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) || areMediaPermissionsComplete()) fileSelectionStart();
                 break;
-            case WAKE_LOCK:
-                wakeLock.acquire();
-                break;
-            case READ_PHONE_STATE:
-                if ((mConnection != null) && mConnection.isBound())
-                    getService().enablePhoneCallReaction();
-                break;
-            case BLUETOOTH:
-                if ((mConnection != null) && mConnection.isBound())
-                    getService().watchBluetoothHeadset();
-                break;
-            default:
-                break;
+            case WAKE_LOCK: wakeLock.acquire(); break;
+            case READ_PHONE_STATE: if ((mConnection != null) && mConnection.isBound()) getService().enablePhoneCallReaction(); break;
+            case BLUETOOTH: if ((mConnection != null) && mConnection.isBound()) getService().watchBluetoothHeadset(); break;
+            default: break;
         }
     }
+
+    @Override public void onCmdProcessing(int cmdId, boolean complete) { if(complete) activecmds.remove(cmdId); }
 
     @Override
-    public void onCmdProcessing(int cmdId, boolean complete) {
-        if(complete) {
-            activecmds.remove(cmdId);
+    public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
+        textmsgAdapter.setMyUserID(my_userid);
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser != null) {
+            FirebaseFirestore db = FirebaseFirestore.getInstance();
+            db.collection("pengguna").whereEqualTo("email", currentUser.getEmail()).limit(1).get()
+              .addOnSuccessListener(querySnapshot -> {
+                  if (!querySnapshot.isEmpty()) {
+                      String docId = querySnapshot.getDocuments().get(0).getId();
+                      Map<String, Object> updates = new HashMap<>();
+                      updates.put("teamtalk_id", my_userid);
+                      updates.put("lastLogin", System.currentTimeMillis());
+                      db.collection("pengguna").document(docId).update(updates)
+                        .addOnSuccessListener(a -> Log.d(TAG, "Auto-update teamtalk_id: " + my_userid))
+                        .addOnFailureListener(e -> Log.e(TAG, "Gagal update: " + e.getMessage()));
+                  } else {
+                      Map<String, Object> newData = new HashMap<>();
+                      newData.put("foto_profil_url", currentUser.getPhotoUrl() != null ? currentUser.getPhotoUrl().toString() : "");
+                      newData.put("email", currentUser.getEmail());
+                      newData.put("teamtalk_id", my_userid);
+                      newData.put("displayName", currentUser.getDisplayName());
+                      db.collection("pengguna").add(newData)
+                        .addOnSuccessListener(a -> Log.d(TAG, "Dokumen baru dibuat ID: " + my_userid))
+                        .addOnFailureListener(e -> Log.e(TAG, "Gagal buat dokumen: " + e.getMessage()));
+                  }
+              });
         }
     }
 
-@Override
-public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
-    textmsgAdapter.setMyUserID(my_userid);
-    
-    // === LOGIKA OTOMATIS UPDATE TEAMTALK_ID ===
-    FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
-    if (currentUser != null) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
-        
-        // Cari dokumen user berdasarkan Email (karena email tidak berubah)
-        db.collection("pengguna")
-          .whereEqualTo("email", currentUser.getEmail()) 
-          .limit(1)
-          .get()
-          .addOnSuccessListener(querySnapshot -> {
-              if (!querySnapshot.isEmpty()) {
-                  // Dokumen ketemu! Update teamtalk_id dengan ID TeamTalk terbaru
-                  String docId = querySnapshot.getDocuments().get(0).getId();
-                  
-                  Map<String, Object> updates = new HashMap<>();
-                  updates.put("teamtalk_id", my_userid); // <--- INI KUNCINYA!
-                  updates.put("lastLogin", System.currentTimeMillis());
-                  
-                  db.collection("pengguna").document(docId)
-                    .update(updates)
-                    .addOnSuccessListener(a -> Log.d(TAG, "Auto-update teamtalk_id: " + my_userid))
-                    .addOnFailureListener(e -> Log.e(TAG, "Gagal update: " + e.getMessage()));
-                    
-              } else {
-                  // Jika dokumen belum ada (user baru), buat baru
-                  Map<String, Object> newData = new HashMap<>();
-                  newData.put("foto_profil_url", currentUser.getPhotoUrl() != null ? 
-                               currentUser.getPhotoUrl().toString() : "");
-                  newData.put("email", currentUser.getEmail());
-                  newData.put("teamtalk_id", my_userid);
-                  newData.put("displayName", currentUser.getDisplayName());
-                  
-                  db.collection("pengguna").add(newData)
-                    .addOnSuccessListener(a -> Log.d(TAG, "Dokumen baru dibuat ID: " + my_userid))
-                    .addOnFailureListener(e -> Log.e(TAG, "Gagal buat dokumen: " + e.getMessage()));
-              }
-          });
-    }
-    // === AKHIR LOGIKA OTOMATIS ===
-}
     @Override
     public void onCmdMyselfLoggedOut() {
         accessibilityAssistant.lockEvents();
@@ -2024,13 +1458,10 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
     @Override
     public void onCmdUserLoggedIn(User user) {
         users.put(user.nUserID, user);
-
         accessibilityAssistant.lockEvents();
         textmsgAdapter.notifyDataSetChanged();
         accessibilityAssistant.unlockEvents();
-
-        if (sounds.get(SOUND_USERLOGGEDIN) != 0)
-            audioIcons.play(sounds.get(SOUND_USERLOGGEDIN), 1.0f, 1.0f, 0, 0, 1.0f);
+        if (sounds.get(SOUND_USERLOGGEDIN) != 0) audioIcons.play(sounds.get(SOUND_USERLOGGEDIN), 1.0f, 1.0f, 0, 0, 1.0f);
         if (ttsWrapper != null && prefs.get("server_login_checkbox", false)) {
             String name = Utils.getDisplayName(getBaseContext(), user);
             ttsWrapper.speak(name + " " + getResources().getString(R.string.text_tts_loggedin));
@@ -2040,13 +1471,10 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
     @Override
     public void onCmdUserLoggedOut(User user) {
         users.remove(user.nUserID);
-
         accessibilityAssistant.lockEvents();
         textmsgAdapter.notifyDataSetChanged();
         accessibilityAssistant.unlockEvents();
-
-        if (sounds.get(SOUND_USERLOGGEDOFF) != 0)
-            audioIcons.play(sounds.get(SOUND_USERLOGGEDOFF), 1.0f, 1.0f, 0, 0, 1.0f);
+        if (sounds.get(SOUND_USERLOGGEDOFF) != 0) audioIcons.play(sounds.get(SOUND_USERLOGGEDOFF), 1.0f, 1.0f, 0, 0, 1.0f);
         if (ttsWrapper != null && prefs.get("server_logout_checkbox", false)) {
             String name = Utils.getDisplayName(getBaseContext(), user);
             ttsWrapper.speak(name + " " + getResources().getString(R.string.text_tts_loggedout));
@@ -2060,9 +1488,7 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
             channelsAdapter.notifyDataSetChanged();
             accessibilityAssistant.unlockEvents();
         }
-
         subscriptionChange(user);
-
         users.put(user.nUserID, user);
         accessibilityAssistant.lockEvents();
         textmsgAdapter.notifyDataSetChanged();
@@ -2071,55 +1497,41 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
 
     @Override
     public void onCmdUserJoinedChannel(User user) {
-
         users.put(user.nUserID, user);
-        
         if(user.nUserID == getClient().getMyUserID()) {
-            //myself joined channel
             Channel chan = getService().getChannels().get(user.nChannelID);
             setCurrentChannel(chan);
             filesAdapter.update(curchannel);
-
             setMyChannel(chan);
-
-            //update the displayed channel to the one we're currently in
             accessibilityAssistant.lockEvents();
             channelsAdapter.notifyDataSetChanged();
             accessibilityAssistant.unlockEvents();
+        } else if(curchannel != null && curchannel.nChannelID == user.nChannelID) {
+            // other user joined current channel
         }
-        else if(curchannel != null && curchannel.nChannelID == user.nChannelID) {
-            //other user joined current channel
-        }
-        
         if(mychannel != null && mychannel.nChannelID == user.nChannelID) {
-            //event took place in current channel
-            
             if(user.nUserID != getClient().getMyUserID()) {
                 accessibilityAssistant.lockEvents();
                 textmsgAdapter.notifyDataSetChanged();
                 channelsAdapter.notifyDataSetChanged();
                 if (getClient().getMyChannelID() == user.nChannelID) {
-                    if (sounds.get(SOUND_USERJOIN) != 0)
-                        audioIcons.play(sounds.get(SOUND_USERJOIN), 1.0f, 1.0f, 0, 0, 1.0f);
+                    if (sounds.get(SOUND_USERJOIN) != 0) audioIcons.play(sounds.get(SOUND_USERJOIN), 1.0f, 1.0f, 0, 0, 1.0f);
                     if (ttsWrapper != null && prefs.get("channel_join_checkbox", false)) {
                         String name = Utils.getDisplayName(getBaseContext(), user);
                         ttsWrapper.speak(name + " " + getResources().getString(R.string.text_tts_joined_chan));
                     }
                 }
                 accessibilityAssistant.unlockEvents();
-            }
-            else {
+            } else {
                 textmsgAdapter.notifyDataSetChanged();
                 channelsAdapter.notifyDataSetChanged();
             }
-        }
-        else if (user.nUserID != getClient().getMyUserID() && ttsWrapper != null && prefs.get("all_channel_join_checkbox", false)) {
+        } else if (user.nUserID != getClient().getMyUserID() && ttsWrapper != null && prefs.get("all_channel_join_checkbox", false)) {
             String name = Utils.getDisplayName(getBaseContext(), user);
             Channel targetChan = getService().getChannels().get(user.nChannelID);
             String chanName = (targetChan.nParentID == 0) ? getString(R.string.text_root_chan) : targetChan.szName;
             ttsWrapper.speak(getString(R.string.text_tts_user_joined_other_channel, name, chanName));
-        }
-        else if (isVisibleChannel(user.nChannelID)) {
+        } else if (isVisibleChannel(user.nChannelID)) {
             accessibilityAssistant.lockEvents();
             channelsAdapter.notifyDataSetChanged();
             accessibilityAssistant.unlockEvents();
@@ -2128,48 +1540,34 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
 
     @Override
     public void onCmdUserLeftChannel(int channelid, User user) {
-
         users.put(user.nUserID, user);
-        
         if(user.nUserID == getClient().getMyUserID()) {
-            //myself left current channel
-            
             textmsgAdapter.notifyDataSetChanged();
-
             setCurrentChannel(null);
             setMyChannel(null);
-        }
-        else if(curchannel != null && channelid == curchannel.nChannelID){
-            //other user left current channel
-            
+        } else if(curchannel != null && channelid == curchannel.nChannelID){
             accessibilityAssistant.lockEvents();
             textmsgAdapter.notifyDataSetChanged();
             accessibilityAssistant.unlockEvents();
         }
-        
         if(mychannel != null && mychannel.nChannelID == channelid) {
-            //event took place in current channel
-            
             accessibilityAssistant.lockEvents();
             textmsgAdapter.notifyDataSetChanged();
             channelsAdapter.notifyDataSetChanged();
             if (getClient().getMyChannelID() == channelid) {
-                    if (sounds.get(SOUND_USERLEFT) != 0)
-                        audioIcons.play(sounds.get(SOUND_USERLEFT), 1.0f, 1.0f, 0, 0, 1.0f);
+                if (sounds.get(SOUND_USERLEFT) != 0) audioIcons.play(sounds.get(SOUND_USERLEFT), 1.0f, 1.0f, 0, 0, 1.0f);
                 if (ttsWrapper != null && prefs.get("channel_leave_checkbox", false)) {
                     String name = Utils.getDisplayName(getBaseContext(), user);
                     ttsWrapper.speak(name + " " + getResources().getString(R.string.text_tts_left_chan));
                 }
             }
             accessibilityAssistant.unlockEvents();
-        }
-        else if (user.nUserID != getClient().getMyUserID() && ttsWrapper != null && prefs.get("all_channel_leave_checkbox", false)) {
+        } else if (user.nUserID != getClient().getMyUserID() && ttsWrapper != null && prefs.get("all_channel_leave_checkbox", false)) {
             String name = Utils.getDisplayName(getBaseContext(), user);
             Channel targetChan = getService().getChannels().get(channelid);
             String chanName = (targetChan.nParentID == 0) ? getString(R.string.text_root_chan) : targetChan.szName;
             ttsWrapper.speak(getString(R.string.text_tts_user_left_other_channel, name, chanName));
-        }
-        else if (isVisibleChannel(channelid)) {
+        } else if (isVisibleChannel(channelid)) {
             accessibilityAssistant.lockEvents();
             channelsAdapter.notifyDataSetChanged();
             accessibilityAssistant.unlockEvents();
@@ -2183,26 +1581,19 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
         MyTextMessage completemsg = MyTextMessage.mergeMessage(txtmsgMergeBuffer, new MyTextMessage(textmessage, ""));
         switch (textmessage.nMsgType) {
         case TextMsgType.MSGTYPE_CHANNEL :
-
             accessibilityAssistant.lockEvents();
             textmsgAdapter.notifyDataSetChanged();
             accessibilityAssistant.unlockEvents();
-
-            if (completemsg == null)
-                break;
-
+            if (completemsg == null) break;
             if (textmessage.nFromUserID != getService().getTTInstance().getMyUserID()) {
-                if (sounds.get(SOUND_CHANMSG) != 0)
-                    audioIcons.play(sounds.get(SOUND_CHANMSG), 1.0f, 1.0f, 0, 0, 1.0f);
+                if (sounds.get(SOUND_CHANMSG) != 0) audioIcons.play(sounds.get(SOUND_CHANMSG), 1.0f, 1.0f, 0, 0, 1.0f);
                 if (ttsWrapper != null && prefs.get("channel_message_checkbox", false)) {
                     sender = getService().getUsers().get(textmessage.nFromUserID);
                     name = Utils.getDisplayName(getBaseContext(), sender);
                     ttsWrapper.speak(getString(R.string.text_tts_channel_message, (sender != null) ? name : "", completemsg.szMessage));
                 }
-            }
-            else if (textmessage.nFromUserID == getService().getTTInstance().getMyUserID()) {
-                if (sounds.get(SOUND_CHANMSGSENT) != 0)
-                    audioIcons.play(sounds.get(SOUND_CHANMSGSENT), 1.0f, 1.0f, 0, 0, 1.0f);
+            } else if (textmessage.nFromUserID == getService().getTTInstance().getMyUserID()) {
+                if (sounds.get(SOUND_CHANMSGSENT) != 0) audioIcons.play(sounds.get(SOUND_CHANMSGSENT), 1.0f, 1.0f, 0, 0, 1.0f);
                 if (ttsWrapper != null && prefs.get("channel_message_sent_checkbox", false)) {
                     ttsWrapper.speak(getString(R.string.text_tts_channel_message_sent, completemsg.szMessage));
                 }
@@ -2213,12 +1604,8 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
             accessibilityAssistant.lockEvents();
             textmsgAdapter.notifyDataSetChanged();
             accessibilityAssistant.unlockEvents();
-
-            if (completemsg == null)
-                break;
-
-            if (sounds.get(SOUND_BCASTMSG) != 0)
-                audioIcons.play(sounds.get(SOUND_BCASTMSG), 1.0f, 1.0f, 0, 0, 1.0f);
+            if (completemsg == null) break;
+            if (sounds.get(SOUND_BCASTMSG) != 0) audioIcons.play(sounds.get(SOUND_BCASTMSG), 1.0f, 1.0f, 0, 0, 1.0f);
             if (ttsWrapper != null && prefs.get("broadcast_message_checkbox", false)) {
                 sender = getService().getUsers().get(textmessage.nFromUserID);
                 name = Utils.getDisplayName(getBaseContext(), sender);
@@ -2227,12 +1614,8 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
             Log.d(TAG, "Broadcast message in " + this.hashCode());
             break;
         case TextMsgType.MSGTYPE_USER :
-            if (completemsg == null)
-                break;
-
-            if (sounds.get(SOUND_USERMSG) != 0)
-                audioIcons.play(sounds.get(SOUND_USERMSG), 1.0f, 1.0f, 0, 0, 1.0f);
-            
+            if (completemsg == null) break;
+            if (sounds.get(SOUND_USERMSG) != 0) audioIcons.play(sounds.get(SOUND_USERMSG), 1.0f, 1.0f, 0, 0, 1.0f);
             sender = getService().getUsers().get(textmessage.nFromUserID);
             name = Utils.getDisplayName(getBaseContext(), sender);
             String senderName = (sender != null) ? name : "";
@@ -2260,9 +1643,7 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
             if (textmessage.szMessage.startsWith("typing\r\n")) {
                 boolean isTyping = textmessage.szMessage.endsWith("1");
                 if (isTyping) {
-                    if (sounds.get(SOUND_TYPING) != 0)
-                        audioIcons.play(sounds.get(SOUND_TYPING), 1.0f, 1.0f, 0, 0, 1.0f);
-
+                    if (sounds.get(SOUND_TYPING) != 0) audioIcons.play(sounds.get(SOUND_TYPING), 1.0f, 1.0f, 0, 0, 1.0f);
                     if (ttsWrapper != null && prefs.get("typing_checkbox", false)) {
                         sender = getService().getUsers().get(textmessage.nFromUserID);
                         name = Utils.getDisplayName(getBaseContext(), sender);
@@ -2290,26 +1671,17 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
             channelsAdapter.notifyDataSetChanged();
             accessibilityAssistant.unlockEvents();
         }
-
         if(mychannel != null && mychannel.nChannelID == channel.nChannelID) {
-
             if (ttsWrapper != null) {
                 Utils.ttsTransmitUsersToggled(getBaseContext(), mychannel, channel, getService().getUsers()).ifPresent(text -> ttsWrapper.speak(text));
             }
-
             int myuserid = getClient().getMyUserID();
-
             if(channel.transmitUsersQueue[0] == myuserid && mychannel.transmitUsersQueue[0] != myuserid) {
-                if(sounds.get(SOUND_TXREADY) != 0) {
-                    audioIcons.play(sounds.get(SOUND_TXREADY), 1.0f, 1.0f, 0, 0, 1.0f);
-                }
+                if(sounds.get(SOUND_TXREADY) != 0) audioIcons.play(sounds.get(SOUND_TXREADY), 1.0f, 1.0f, 0, 0, 1.0f);
             }
             if(mychannel.transmitUsersQueue[0] == myuserid && channel.transmitUsersQueue[0] != myuserid) {
-                if(sounds.get(SOUND_TXSTOP) != 0) {
-                    audioIcons.play(sounds.get(SOUND_TXSTOP), 1.0f, 1.0f, 0, 0, 1.0f);
-                }
+                if(sounds.get(SOUND_TXSTOP) != 0) audioIcons.play(sounds.get(SOUND_TXSTOP), 1.0f, 1.0f, 0, 0, 1.0f);
             }
-
             setMyChannel(channel);
         }
         accessibilityAssistant.lockEvents();
@@ -2329,68 +1701,51 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
     @Override
     public void onCmdFileNew(RemoteFile remotefile) {
         filesAdapter.update();
-        
         if(activecmds.size() == 0 && getClient().getMyChannelID() == remotefile.nChannelID) {
-            if(sounds.get(SOUND_FILESUPDATE) != 0) {
-                audioIcons.play(sounds.get(SOUND_FILESUPDATE), 1.0f, 1.0f, 0, 0, 1.0f);
-            }
+            if(sounds.get(SOUND_FILESUPDATE) != 0) audioIcons.play(sounds.get(SOUND_FILESUPDATE), 1.0f, 1.0f, 0, 0, 1.0f);
         }
     }
 
     @Override
     public void onCmdFileRemove(RemoteFile remotefile) {
         filesAdapter.update();
-        
         if(activecmds.size() == 0 && getClient().getMyChannelID() == remotefile.nChannelID) {
-            if(sounds.get(SOUND_FILESUPDATE) != 0) {
-                audioIcons.play(sounds.get(SOUND_FILESUPDATE), 1.0f, 1.0f, 0, 0, 1.0f);
-            }
+            if(sounds.get(SOUND_FILESUPDATE) != 0) audioIcons.play(sounds.get(SOUND_FILESUPDATE), 1.0f, 1.0f, 0, 0, 1.0f);
         }
     }
 
     @Override
     public void onConnectionLost() {
-        if(sounds.get(SOUND_SERVERLOST) != 0) {
-            audioIcons.play(sounds.get(SOUND_SERVERLOST), 1.0f, 1.0f, 0, 0, 1.0f);
-        }
+        if(sounds.get(SOUND_SERVERLOST) != 0) audioIcons.play(sounds.get(SOUND_SERVERLOST), 1.0f, 1.0f, 0, 0, 1.0f);
     }
 
     @Override
     public void onUserStateChange(User user) {
         users.put(user.nUserID, user);
-        
         if (curchannel != null && user.nChannelID == curchannel.nChannelID) {
             accessibilityAssistant.lockEvents();
             channelsAdapter.notifyDataSetChanged();
             accessibilityAssistant.unlockEvents();
         }
-        
     }
 
-@Override
+    @Override
     public void onVoiceTransmissionToggle(boolean voiceTransmissionEnabled, boolean isSuspended) {
         adjustTxState(voiceTransmissionEnabled);
-
         if (!isSuspended) {
-            boolean ptt_vibrate = prefs.get("vibrate_checkbox", true) &&
-                Permissions.VIBRATE.request(this);
+            boolean ptt_vibrate = prefs.get("vibrate_checkbox", true) && Permissions.VIBRATE.request(this);
             if (voiceTransmissionEnabled) {
                 accessibilityAssistant.shutUp();
-                if (sounds.get(SOUND_VOICETXON) != 0) {
-                    audioIcons.play(sounds.get(SOUND_VOICETXON), 1.0f, 1.0f, 0, 0, 1.0f);
-                }
+                if (sounds.get(SOUND_VOICETXON) != 0) audioIcons.play(sounds.get(SOUND_VOICETXON), 1.0f, 1.0f, 0, 0, 1.0f);
                 if (ptt_vibrate) {
                     Vibrator vibrat = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
                     vibrat.vibrate(50);
                 }
             } else {
-                if (sounds.get(SOUND_VOICETXOFF) != 0) {
-                    audioIcons.play(sounds.get(SOUND_VOICETXOFF), 1.0f, 1.0f, 0, 0, 1.0f);
-                }
+                if (sounds.get(SOUND_VOICETXOFF) != 0) audioIcons.play(sounds.get(SOUND_VOICETXOFF), 1.0f, 1.0f, 0, 0, 1.0f);
                 if (ptt_vibrate) {
                     Vibrator vibrat = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-                    long[] pattern = { 0, 20, 80, 20 };
-                    vibrat.vibrate(pattern, -1);
+                    vibrat.vibrate(new long[]{ 0, 20, 80, 20 }, -1);
                 }
             }
         }
@@ -2400,13 +1755,9 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
     public void onVoiceActivationToggle(boolean voiceActivationEnabled, boolean isSuspended) {
         adjustVoxState(voiceActivationEnabled, voiceActivationEnabled ? getClient().getVoiceActivationLevel() : getClient().getSoundInputGainLevel());
         if (voiceActivationEnabled) {
-            if (sounds.get(SOUND_VOXENABLE) != 0) {
-                audioIcons.play(sounds.get(SOUND_VOXENABLE), 1.0f, 1.0f, 0, 0, 1.0f);
-            }
+            if (sounds.get(SOUND_VOXENABLE) != 0) audioIcons.play(sounds.get(SOUND_VOXENABLE), 1.0f, 1.0f, 0, 0, 1.0f);
         } else {
-            if (sounds.get(SOUND_VOXDISABLE) != 0) {
-                audioIcons.play(sounds.get(SOUND_VOXDISABLE), 1.0f, 1.0f, 0, 0, 1.0f);
-            }
+            if (sounds.get(SOUND_VOXDISABLE) != 0) audioIcons.play(sounds.get(SOUND_VOXDISABLE), 1.0f, 1.0f, 0, 0, 1.0f);
         }
     }
 
@@ -2417,33 +1768,19 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
         if (sound != 0) audioIcons.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
     }
 
-    // === IMPLEMENTASI CALLBACK (Telinga Adapter) ===
+    // === IMPLEMENTASI CALLBACK DARI INTERFACE TERPISAH ===
     @Override
-    public void onJoinChannel(Channel channel) { 
-        joinChannel(channel); 
-    }
+    public void onJoinChannel(Channel channel) { joinChannel(channel); }
     
     @Override
-    public void onItemClick(Object item) { 
-        onChannelItemClick(item); 
-    }
+    public void onItemClick(Object item) { onChannelItemClick(item); }
     
     @Override
-    public void onItemLongClick(Object item, View view) { 
-        onChannelItemLongClick(item, view); 
-    }
+    public void onItemLongClick(Object item, View view) { onChannelItemLongClick(item, view); }
     
     @Override
     public void openTextMessage(int userId) { 
-        Intent i = new Intent(this, TextMessageActivity.class);
-        startActivity(i.putExtra(TextMessageActivity.EXTRA_USERID, userId));
+        startActivity(new Intent(this, TextMessageActivity.class).putExtra(TextMessageActivity.EXTRA_USERID, userId));
     }
 
-    // === INTERFACE JEMBATAN (Mulut Adapter) ===
-    public interface ChannelListCallbacks {
-        void onJoinChannel(Channel channel);
-        void onItemClick(Object item);
-        void onItemLongClick(Object item, View view);
-        void openTextMessage(int userId);
-    }
-} // <--- SATU-SATUNYA KURUNG PENUTUP TERAKHIR MAINACTIVITY
+} // <--- AKHIR DARI MAINACTIVITY.JAVA YANG BERSIH
