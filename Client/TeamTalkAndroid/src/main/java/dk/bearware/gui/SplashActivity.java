@@ -31,6 +31,8 @@ import java.util.Map;
 public class SplashActivity extends AppCompatActivity {
     private static final int RC_SIGN_IN = 9001;
     private static final String TAG = "SplashActivity";
+    private static final int MAX_RETRY = 5;      // Batas percobaan ambil foto
+    private static final long RETRY_DELAY = 3000; // Jeda 3 detik
 
     private GoogleSignInClient mGoogleSignInClient;
     private FirebaseAuth mAuth;
@@ -46,10 +48,7 @@ public class SplashActivity extends AppCompatActivity {
         // ✅ CEK: SUDAH LOGIN?
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser != null) {
-            // PENTING: Cek & Update Foto Profil setiap kali app dibuka
-            // Ini menjamin jika user ganti foto di Google, database ikut terupdate
-            savePhotoUrlToFirestore(); 
-            
+            savePhotoUrlToFirestore();
             goToServerList();
             return;
         }
@@ -120,8 +119,7 @@ public class SplashActivity extends AppCompatActivity {
 
                 String idToken = account.getIdToken();
                 if (idToken == null || idToken.isEmpty()) {
-                    // Fallback mode
-                    savePhotoUrlToFirestore(); 
+                    savePhotoUrlToFirestore();
                     goToServerList();
                     return;
                 }
@@ -143,11 +141,10 @@ public class SplashActivity extends AppCompatActivity {
                     if (task.isSuccessful()) {
                         FirebaseUser user = mAuth.getCurrentUser();
                         String email = (user != null) ? user.getEmail() : "unknown";
-                        
+
                         if (tvStatus != null) tvStatus.setText("✅ Login berhasil! (" + email + ")");
                         Toast.makeText(this, "Login berhasil!.", Toast.LENGTH_SHORT).show();
 
-                        // ✅ SIMPAN URL FOTO PROFIL KE FIRESTORE SAAT LOGIN BERHASIL
                         savePhotoUrlToFirestore();
 
                         goToServerList();
@@ -165,39 +162,45 @@ public class SplashActivity extends AppCompatActivity {
     /**
      * ✅ FUNGSI UTAMA: MENYIMPAN/UPDATE FOTO PROFIL
      * - Dipanggil saat Login Baru
-     * - Dipanggil saat App Dibuka (untuk cek perubahan foto)
+     * - Dipanggil saat App Dibuka
+     * - UID = ID permanen unik pengguna, sama di semua server
      */
     private void savePhotoUrlToFirestore() {
+        savePhotoUrlToFirestore(0);
+    }
+
+    private void savePhotoUrlToFirestore(final int attempt) {
         FirebaseUser currentUser = mAuth.getCurrentUser();
-        
-        if (currentUser != null) {
-            String uid = currentUser.getUid(); 
-            
-            // Cek apakah foto tersedia
-            if (currentUser.getPhotoUrl() != null) {
-                String photoUrl = currentUser.getPhotoUrl().toString();
-                
-                FirebaseFirestore db = FirebaseFirestore.getInstance();
-                Map<String, Object> updates = new HashMap<>();
-                updates.put("foto_profil_url", photoUrl);
-                
-                // Gunakan merge agar field lain (password server, dll) tidak hilang
-                db.collection("pengguna").document(uid)
-                  .set(updates, SetOptions.merge())
-                  .addOnSuccessListener(aVoid -> {
-                      Log.d(TAG, "Foto profil di-update untuk UID: " + uid);
-                      // Opsional: Toast sukses (bisa dimatikan kalau ganggu)
-                      // Toast.makeText(SplashActivity.this, "Profil diperbarui", Toast.LENGTH_SHORT).show();
-                  })
-                  .addOnFailureListener(e -> {
-                      Log.e(TAG, "Gagal update foto", e);
-                  });
+
+        if (currentUser == null) return;
+
+        final String uid = currentUser.getUid(); // 🆔 ID Permanen Unik Pengguna
+
+        // Cek apakah foto tersedia
+        if (currentUser.getPhotoUrl() != null) {
+            String photoUrl = currentUser.getPhotoUrl().toString();
+
+            FirebaseFirestore db = FirebaseFirestore.getInstance();
+            Map<String, Object> updates = new HashMap<>();
+            updates.put("foto_profil_url", photoUrl);
+
+            // Gunakan merge agar field lain tidak terhapus
+            db.collection("pengguna").document(uid)
+                    .set(updates, SetOptions.merge())
+                    .addOnSuccessListener(aVoid -> {
+                        Log.d(TAG, "✅ Foto profil di-update | UID: " + uid);
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "❌ Gagal simpan foto", e);
+                    });
+        } else {
+            // Foto belum siap / tidak ada
+            if (attempt < MAX_RETRY) {
+                Log.d(TAG, "⏳ Foto belum siap, coba ulang " + (attempt + 1) + "/" + MAX_RETRY);
+                new android.os.Handler(android.os.Looper.getMainLooper())
+                        .postDelayed(() -> savePhotoUrlToFirestore(attempt + 1), RETRY_DELAY);
             } else {
-                // Jika foto null, coba lagi dalam 3 detik (handling delay Google Auth)
-                Log.d(TAG, "Foto belum siap, retry dalam 3 detik...");
-                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                    savePhotoUrlToFirestore();
-                }, 3000);
+                Log.d(TAG, "ℹ️ Maksimal percobaan tercapai. Foto tidak tersedia / belum diatur.");
             }
         }
     }
