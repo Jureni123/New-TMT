@@ -21,7 +21,7 @@ import dk.bearware.backend.TeamTalkConstants;
 import dk.bearware.backend.TeamTalkService;
 import dk.bearware.data.Preferences;
 import dk.bearware.utils.PrefsHelper;
-import dk.bearware.Utils; // PERBAIKAN: Import Utils dari root package dk.bearware
+// TIDAK PERLU IMPORT UTILS DI SINI LAGI! KITA AKAN PAKAI ALAMAT LENGKAP SAAT DIGUNAKAN
 
 public class ChannelListAdapter extends BaseAdapter {
 
@@ -37,16 +37,12 @@ public class ChannelListAdapter extends BaseAdapter {
     private final PrefsHelper prefs;
     private final MainActivity.ChannelListCallbacks callbacks;
     
-    // Variabel lokal pengganti curchannel global
     private Channel currentActiveChannel; 
 
     Vector<Channel> subchannels = new Vector<>();
     Vector<Channel> stickychannels = new Vector<>();
     Vector<User> currentusers = new Vector<>();
 
-    /**
-     * CONSTRUCTOR BARU: Menerima semua dependency dari MainActivity
-     */
     public ChannelListAdapter(Context context, 
                               UserProfileManager mgr, 
                               TeamTalkService svc, 
@@ -59,9 +55,6 @@ public class ChannelListAdapter extends BaseAdapter {
         this.callbacks = cb;
     }
 
-    /**
-     * Method untuk mengupdate channel aktif dari MainActivity
-     */
     public void setCurrentChannel(Channel chan) {
         this.currentActiveChannel = chan;
         notifyDataSetChanged();
@@ -77,9 +70,10 @@ public class ChannelListAdapter extends BaseAdapter {
         int chanid = currentActiveChannel != null ? currentActiveChannel.nChannelID : client.getRootChannelID();
         
         if(currentActiveChannel != null) {
-            subchannels = Utils.getSubChannels(chanid, service.getChannels());
-            stickychannels = Utils.getStickyChannels(chanid, service.getChannels());
-            currentusers = Utils.getUsers(chanid, service.getUsers());
+            // MENGGUNAKAN ALAMAT LENGKAP AGAR TIDAK ERROR IMPORT
+            subchannels = dk.bearware.utils.Utils.getSubChannels(chanid, service.getChannels());
+            stickychannels = dk.bearware.utils.Utils.getStickyChannels(chanid, service.getChannels());
+            currentusers = dk.bearware.utils.Utils.getUsers(chanid, service.getUsers());
         } else {
             Channel root = service.getChannels().get(chanid);
             if(root != null) subchannels.add(root);
@@ -94,7 +88,9 @@ public class ChannelListAdapter extends BaseAdapter {
                 if (v1 && !v2) return -1; 
                 if (!v1 && v2) return 1;
             }
-            return Utils.getDisplayName(inflater.getContext(), u1).compareToIgnoreCase(Utils.getDisplayName(inflater.getContext(), u2));
+            // MENGGUNAKAN ALAMAT LENGKAP DI SINI JUGA
+            return dk.bearware.utils.Utils.getDisplayName(inflater.getContext(), u1).compareToIgnoreCase(
+                   dk.bearware.utils.Utils.getDisplayName(inflater.getContext(), u2));
         });
         super.notifyDataSetChanged();
     }
@@ -175,12 +171,12 @@ public class ChannelListAdapter extends BaseAdapter {
                     }
                     topic.setText(channel.szTopic);
                     
-                    // Gunakan Callback untuk Join Channel (Aman!)
                     join.setOnClickListener(v -> callbacks.onJoinChannel(channel));
                     join.setEnabled(channel.nChannelID != client.getMyChannelID());
                     
                     if (channel.nMaxUsers > 0) {
-                        int pop = Utils.getUsers(channel.nChannelID, service.getUsers()).size();
+                        // MENGGUNAKAN ALAMAT LENGKAP
+                        int pop = dk.bearware.utils.Utils.getUsers(channel.nChannelID, service.getUsers()).size();
                         ((TextView)convertView.findViewById(R.id.population)).setText(
                             pop > 0 ? String.format(Locale.ROOT, "(%d)", pop) : ""
                         );
@@ -202,7 +198,9 @@ public class ChannelListAdapter extends BaseAdapter {
             ImageView usericon = convertView.findViewById(R.id.usericon);
             TextView nickname = convertView.findViewById(R.id.nickname);
             TextView status = convertView.findViewById(R.id.status);
-            String name = Utils.getDisplayName(ctx, user);
+            
+            // MENGGUNAKAN ALAMAT LENGKAP UNTUK GETDISPLAYNAME
+            String name = dk.bearware.utils.Utils.getDisplayName(ctx, user);
             nickname.setText(name);
             status.setText(user.szStatusMsg);
             
@@ -217,15 +215,12 @@ public class ChannelListAdapter extends BaseAdapter {
             else iconRes = female ? (away ? R.drawable.woman_orange : R.drawable.woman_blue) 
                                   : (away ? R.drawable.man_orange : R.drawable.man_blue);
 
-            // Load Avatar Aman via Manager (Sudah include Cache & Tagging)
             profileManager.loadAvatarSafe(user.nUserID, usericon, iconRes);
 
-            // Tombol Pesan memanggil callback
             Button sndmsg = convertView.findViewById(R.id.msg_btn);
             sndmsg.setOnClickListener(v -> callbacks.openTextMessage(user.nUserID));
         } 
         
-        // Delegate Click Events ke MainActivity lewat Interface
         if (callbacks != null) {
             convertView.setOnClickListener(view -> callbacks.onItemClick(item));
             convertView.setOnLongClickListener(view -> {
