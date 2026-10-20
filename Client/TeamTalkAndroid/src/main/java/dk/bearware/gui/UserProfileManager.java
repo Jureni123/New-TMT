@@ -18,45 +18,72 @@ public class UserProfileManager {
     }
 
     /**
-     * Sinkronisasi data user saat login. 
-     * Dipanggil dari onCmdMyselfLoggedIn di MainActivity.
+     * Sinkronisasi data user saat login/masuk ke server
+     * Pakai UID sebagai dokumen ID — konsisten dengan SplashActivity
      */
     public void syncUserProfile(FirebaseUser user, int teamTalkUserId) {
         if (user == null) return;
 
+        String uid = user.getUid(); // 🆔 PAKAI UID = ID PERMANEN
+        String displayName = user.getDisplayName() != null ? user.getDisplayName() : "Unknown";
+        String email = user.getEmail() != null ? user.getEmail() : "";
+        String photoUrl = user.getPhotoUrl() != null ? user.getPhotoUrl().toString() : "";
+
         Map<String, Object> data = new HashMap<>();
-        data.put("displayName", user.getDisplayName() != null ? user.getDisplayName() : "Unknown");
-        data.put("email", user.getEmail());
-        data.put("foto_profil_url", user.getPhotoUrl() != null ? user.getPhotoUrl().toString() : "");
+        data.put("uid", uid);
+        data.put("displayName", displayName);
+        data.put("email", email);
+        data.put("foto_profil_url", photoUrl);
         data.put("teamtalk_id", teamTalkUserId);
         data.put("lastLogin", System.currentTimeMillis());
 
-        // Cari dokumen berdasarkan email (kunci unik & stabil)
+        // ✅ Langsung pakai UID sebagai ID dokumen — tidak perlu cari
         db.collection("pengguna")
-          .whereEqualTo("email", user.getEmail())
-          .limit(1)
-          .get()
-          .addOnSuccessListener(snapshot -> {
-              if (!snapshot.isEmpty()) {
-                  // Update dokumen lama
-                  String docId = snapshot.getDocuments().get(0).getId();
-                  db.collection("pengguna").document(docId).update(data)
-                    .addOnSuccessListener(a -> android.util.Log.d(TAG, "✅ Profil terupdate: " + user.getDisplayName()))
-                    .addOnFailureListener(e -> android.util.Log.e(TAG, "❌ Gagal update: " + e.getMessage()));
-              } else {
-                  // Buat dokumen baru jika belum ada
-                  db.collection("pengguna").add(data)
-                    .addOnSuccessListener(a -> android.util.Log.d(TAG, "✅ Dokumen baru dibuat: " + user.getDisplayName()))
-                    .addOnFailureListener(e -> android.util.Log.e(TAG, "❌ Gagal buat: " + e.getMessage()));
-              }
-          });
+          .document(uid)
+          .set(data)
+          .addOnSuccessListener(aVoid -> 
+              android.util.Log.d(TAG, "✅ Profil tersimpan: " + displayName + " | UID: " + uid))
+          .addOnFailureListener(e -> 
+              android.util.Log.e(TAG, "❌ Gagal simpan profil: " + e.getMessage()));
     }
 
     /**
-     * Load avatar user lain berdasarkan DisplayName.
-     * Dipanggil dari ChannelListAdapter.getView()
+     * Load avatar berdasarkan UID — PALING AMAN & AKURAT
+     * Tambahkan parameter uid saat panggil dari adapter
      */
-    public void loadAvatar(String displayName, ImageView targetView, @DrawableRes int placeholderRes) {
+    public void loadAvatar(String uid, ImageView targetView, @DrawableRes int placeholderRes) {
+        if (uid == null || uid.isEmpty()) {
+            targetView.setImageResource(placeholderRes);
+            return;
+        }
+
+        db.collection("pengguna")
+          .document(uid) // ✅ Langsung akses pakai UID — cepat & pasti benar
+          .get()
+          .addOnSuccessListener(doc -> {
+              if (doc.exists()) {
+                  String url = doc.getString("foto_profil_url");
+                  if (url != null && !url.isEmpty()) {
+                      Glide.with(targetView.getContext())
+                           .load(url)
+                           .circleCrop()
+                           .placeholder(placeholderRes)
+                           .error(placeholderRes)
+                           .into(targetView);
+                      return;
+                  }
+              }
+              targetView.setImageResource(placeholderRes);
+          })
+          .addOnFailureListener(e -> {
+              android.util.Log.e(TAG, "❌ Gagal load avatar: " + e.getMessage());
+              targetView.setImageResource(placeholderRes);
+          });
+    }
+    
+    // 🔄 Versi cadangan: cari pakai displayName (jika UID tidak tersedia di adapter)
+    // HANYA pakai ini jika benar-benar tidak punya UID — bisa tertukar!
+    public void loadAvatarByDisplayName(String displayName, ImageView targetView, @DrawableRes int placeholderRes) {
         if (displayName == null || displayName.isEmpty()) {
             targetView.setImageResource(placeholderRes);
             return;
@@ -68,10 +95,8 @@ public class UserProfileManager {
           .get()
           .addOnSuccessListener(snapshot -> {
               if (!snapshot.isEmpty()) {
-                  // PERBAIKAN: Menggunakan DocumentSnapshot, bukan QueryDocumentSnapshot
                   DocumentSnapshot doc = snapshot.getDocuments().get(0);
                   String url = doc.getString("foto_profil_url");
-                  
                   if (url != null && !url.isEmpty()) {
                       Glide.with(targetView.getContext())
                            .load(url)
@@ -82,11 +107,10 @@ public class UserProfileManager {
                       return;
                   }
               }
-              // Fallback ke icon default
               targetView.setImageResource(placeholderRes);
           })
           .addOnFailureListener(e -> {
-              android.util.Log.e(TAG, "Gagal load avatar " + displayName + ": " + e.getMessage());
+              android.util.Log.e(TAG, "❌ Gagal load avatar: " + e.getMessage());
               targetView.setImageResource(placeholderRes);
           });
     }
