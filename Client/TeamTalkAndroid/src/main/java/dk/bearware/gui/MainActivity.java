@@ -135,7 +135,7 @@ import dk.bearware.data.TTSWrapper;
 import dk.bearware.data.TextMessageAdapter;
 import dk.bearware.events.ClientEventListener;
 import dk.bearware.utils.PrefsHelper;
-
+import dk.bearware.gui.ChannelListCallbacks;
 public class MainActivity extends AppCompatActivity
         implements TeamTalkConnectionListener, OnMenuItemClickListener, SensorEventListener,
         OnVoiceTransmissionToggleListener, ClientEventListener.OnConnectionLostListener,
@@ -195,6 +195,7 @@ private UserProfileManager profileManager;
     private final Map<Integer, AvatarData> avatarCache = new HashMap<>();
     private static final long AVATAR_CACHE_EXPIRY_MS = 5 * 60 * 1000; // 5 Menit
     private final Set<Integer> pendingAvatarRequests = new HashSet<>();
+		private final ChannelListCallbacks callbacks;	
     // =====================================
 
     static final String MESSAGE_NOTIFICATION_TAG = "incoming_message";
