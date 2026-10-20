@@ -181,6 +181,7 @@ public class MainActivity extends AppCompatActivity
     Sensor mSensor;
     boolean isProximitySensorRegistered = false;
     Map<Integer, User> users = new HashMap<>();
+private UserProfileManager profileManager; 
 
     // === SISTEM CACHE AVATAR OPTIMIZED ===
     private static class AvatarData {
@@ -210,33 +211,11 @@ public class MainActivity extends AppCompatActivity
     private Context ctx;
     private PrefsHelper prefs;
 
-    // === METHOD UNTUK MENYIMPAN PROFIL USER KE FIRESTORE ===
-/*    private void saveUserProfileToFirestore(FirebaseUser firebaseUser) {
-        if (firebaseUser == null) return;
-        
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
-        Map<String, Object> userProfile = new HashMap<>();
-        userProfile.put("uid", firebaseUser.getUid());
-        userProfile.put("displayName", firebaseUser.getDisplayName() != null ? 
-                        firebaseUser.getDisplayName() : "Unknown");
-        userProfile.put("email", firebaseUser.getEmail());
-        userProfile.put("foto_profil_url", firebaseUser.getPhotoUrl() != null ? 
-                         firebaseUser.getPhotoUrl().toString() : "");
-        userProfile.put("lastLogin", System.currentTimeMillis());
-        
-        // Simpan dengan document ID = uid user
-        db.collection("users")
-          .document(firebaseUser.getUid())
-          .set(userProfile)
-          .addOnSuccessListener(aVoid -> Log.d(TAG, "User profile saved successfully"))
-          .addOnFailureListener(e -> Log.e(TAG, "Error saving user profile", e));
-    }
-    // === AKHIR METHOD SAVE PROFILE ===
-
+  
     public ChannelListAdapter getChannelsAdapter() { return channelsAdapter; }
     public FileListAdapter getFilesAdapter() { return filesAdapter; }
     public TextMessageAdapter getTextMessagesAdapter() { return textmsgAdapter; }
-    public MediaAdapter getMediaAdapter() { return mediaAdapter; }*/
+    public MediaAdapter getMediaAdapter() { return mediaAdapter; }
 //============
     @Override
     protected void onCreate(Bundle savedInstanceState) {
