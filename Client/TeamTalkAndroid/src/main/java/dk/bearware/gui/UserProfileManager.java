@@ -1,13 +1,11 @@
-package dk.bearware.gui; // Sesuaikan dengan package MainActivity-mu
+package dk.bearware.gui;
 
 import android.widget.ImageView;
 import androidx.annotation.DrawableRes;
-
 import com.bumptech.glide.Glide;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.QueryDocumentSnapshot;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -70,8 +68,8 @@ public class UserProfileManager {
           .get()
           .addOnSuccessListener(snapshot -> {
               if (!snapshot.isEmpty()) {
+                  // PERBAIKAN: Menggunakan DocumentSnapshot, bukan QueryDocumentSnapshot
                   DocumentSnapshot doc = snapshot.getDocuments().get(0);
-                 // QueryDocumentSnapshot doc = snapshot.getDocuments().get(0);
                   String url = doc.getString("foto_profil_url");
                   
                   if (url != null && !url.isEmpty()) {
