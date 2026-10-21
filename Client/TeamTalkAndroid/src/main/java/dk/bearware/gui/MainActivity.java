@@ -1947,7 +1947,7 @@ class ChannelListAdapter extends BaseAdapter {
             activecmds.remove(cmdId);
         }
     }
-@Override
+/*@Override
 public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
     textmsgAdapter.setMyUserID(my_userid);
     
@@ -1973,8 +1973,73 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
     } else {
         Log.e(TAG, "️ User Firebase NULL saat login TeamTalk!");
     }
-}
+}*/
 //======ahirlogica
+
+
+// HAPUS atau KOMENTARI method onCmdMyselfLoggedIn() yang lama, ganti dengan ini:
+
+@Override
+public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
+    textmsgAdapter.setMyUserID(my_userid);
+    
+    // ✅ Sinkronkan profil hanya jika belum pernah disinkronkan
+    syncProfileToFirestoreIfNeeded(my_userid);
+}
+
+/**
+ * Sinkronkan profil ke Firestore hanya sekali saat login TeamTalk
+ */
+private void syncProfileToFirestoreIfNeeded(int teamtalkUserId) {
+    FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+    
+    if (currentUser == null) {
+        Log.e(TAG, "⚠️ User Firebase NULL saat login TeamTalk!");
+        return;
+    }
+    
+    String uid = currentUser.getUid();
+    
+    // Cek apakah profil sudah ada di Firestore (optional, untuk efisiensi)
+    FirebaseFirestore db = FirebaseFirestore.getInstance();
+    db.collection("pengguna").document(uid).get()
+        .addOnSuccessListener(doc -> {
+            if (!doc.exists() || doc.getLong("teamtalk_id") == null) {
+                // Profil belum ada atau teamtalk_id belum terisi, simpan sekarang
+                saveUserProfile(currentUser, teamtalkUserId);
+            } else {
+                Log.d(TAG, "✅ Profil sudah ada, skip sinkronisasi");
+            }
+        })
+        .addOnFailureListener(e -> {
+            // Jika gagal cek, tetap simpan untuk memastikan data tersimpan
+            Log.w(TAG, "Gagal cek profil, mencoba simpan: " + e.getMessage());
+            saveUserProfile(currentUser, teamtalkUserId);
+        });
+}
+
+/**
+ * Simpan profil user ke Firestore
+ */
+private void saveUserProfile(FirebaseUser user, int teamtalkUserId) {
+    Map<String, Object> dataLengkap = new HashMap<>();
+    dataLengkap.put("displayName", user.getDisplayName() != null ? user.getDisplayName() : "User");
+    dataLengkap.put("email", user.getEmail());
+    dataLengkap.put("foto_profil_url", user.getPhotoUrl() != null ? user.getPhotoUrl().toString() : "");
+    dataLengkap.put("teamtalk_id", teamtalkUserId);
+    dataLengkap.put("lastLogin", System.currentTimeMillis());
+    
+    FirebaseFirestore.getInstance()
+        .collection("pengguna")
+        .document(user.getUid()) 
+        .set(dataLengkap)
+        .addOnSuccessListener(aVoid -> Log.d(TAG, "✅ Data profil berhasil disimpan untuk UID: " + user.getUid()))
+        .addOnFailureListener(e -> Log.e(TAG, "❌ Gagal simpan profil: " + e.getMessage()));
+}
+
+
+
+
     @Override
     public void onCmdMyselfLoggedOut() {
         accessibilityAssistant.lockEvents();
