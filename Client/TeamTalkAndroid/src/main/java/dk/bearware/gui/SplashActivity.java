@@ -36,9 +36,8 @@ public class SplashActivity extends AppCompatActivity {
         // Cek apakah sudah login sebelumnya
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser != null) {
-            // SUDAH LOGIN: Langsung ke ServerList. 
-            // BIARKAN MainActivity YANG URUS DATABASE NANTI.
-            goToServerList();
+            // SUDAH LOGIN: Sinkronkan profil dulu, baru ke ServerList
+            syncUserProfileIfNeeded(currentUser);
             return;
         }
 
@@ -119,14 +118,40 @@ public class SplashActivity extends AppCompatActivity {
         mAuth.signInWithCredential(credential)
                 .addOnCompleteListener(this, task -> {
                     if (task.isSuccessful()) {
-                        // LOGIN BERHASIL: Langsung ke ServerList.
-                        // JANGAN SENTUH FIRESTORE DI SINI!
-                        goToServerList();
+                        FirebaseUser user = mAuth.getCurrentUser();
+                        if (user != null) {
+                            // ✅ Sinkronkan profil ke Firestore setelah login berhasil
+                            syncUserProfileIfNeeded(user);
+                        } else {
+                            goToServerList();
+                        }
                     } else {
                         Toast.makeText(this, "Login gagal", Toast.LENGTH_LONG).show();
                         if (progressBar != null) progressBar.setVisibility(View.GONE);
                     }
                 });
+    }
+
+    /**
+     * Sinkronkan profil user ke Firestore
+     */
+    private void syncUserProfileIfNeeded(FirebaseUser user) {
+        if (user == null) {
+            goToServerList();
+            return;
+        }
+
+        if (tvStatus != null) tvStatus.setText("Menyimpan profil...");
+        if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+
+        UserProfileManager profileMgr = new UserProfileManager();
+        // Generate random ID untuk teamTalkUserId (sesuai preferensimu)
+        int teamTalkUserId = (int) (Math.random() * 900000) + 100000;
+        
+        profileMgr.syncUserProfile(user, teamTalkUserId);
+        
+        // Langsung ke ServerList (Firestore akan update di background)
+        goToServerList();
     }
 
     private void goToServerList() {
