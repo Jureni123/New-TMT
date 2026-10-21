@@ -1952,43 +1952,26 @@ public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
     textmsgAdapter.setMyUserID(my_userid);
     
     FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+    
     if (currentUser != null) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
-        String uid = currentUser.getUid(); // Ambil UID dulu
+        // 1. Siapkan semua data dalam satu paket
+        Map<String, Object> dataLengkap = new HashMap<>();
+        dataLengkap.put("displayName", currentUser.getDisplayName() != null ? currentUser.getDisplayName() : "User");
+        dataLengkap.put("email", currentUser.getEmail());
+        dataLengkap.put("foto_profil_url", currentUser.getPhotoUrl() != null ? currentUser.getPhotoUrl().toString() : "");
+        dataLengkap.put("teamtalk_id", my_userid); // ID dari server TeamTalk
+        dataLengkap.put("lastLogin", System.currentTimeMillis());
         
-        // Cari dokumen berdasarkan Email
-        db.collection("pengguna")
-          .whereEqualTo("email", currentUser.getEmail()) 
-          .limit(1)
-          .get()
-          .addOnSuccessListener(querySnapshot -> {
-              Map<String, Object> updates = new HashMap<>();
-              updates.put("teamtalk_id", my_userid);
-              updates.put("lastLogin", System.currentTimeMillis());
-              
-              if (!querySnapshot.isEmpty()) {
-                  // ✅ DOKUMEN ADA: Update saja
-                  String docId = querySnapshot.getDocuments().get(0).getId();
-                  db.collection("pengguna").document(docId)
-                    .update(updates)
-                    .addOnSuccessListener(a -> Log.d(TAG, "TeamTalk ID diupdate: " + my_userid))
-                    .addOnFailureListener(e -> Log.e(TAG, "Gagal update: " + e.getMessage()));
-                    
-              } else {
-                  // ✅ DOKUMEN TIDAK ADA: Buat BARU dengan ID = UID (BUKAN ADD RANDOM!)
-                  updates.put("foto_profil_url", currentUser.getPhotoUrl() != null ? 
-                               currentUser.getPhotoUrl().toString() : "");
-                  updates.put("email", currentUser.getEmail());
-                  updates.put("displayName", currentUser.getDisplayName() != null ? 
-                               currentUser.getDisplayName() : "Unknown");
-                  
-                  // GUNAKAN set() DENGAN UID SEBAGAI ID DOKUMEN
-                  db.collection("pengguna").document(uid)
-                    .set(updates)
-                    .addOnSuccessListener(a -> Log.d(TAG, "Dokumen baru dibuat dengan UID: " + uid))
-                    .addOnFailureListener(e -> Log.e(TAG, "Gagal buat dokumen: " + e.getMessage()));
-              }
-          });
+        // 2. Tulis langsung ke database menggunakan UID sebagai ID Dokumen
+        FirebaseFirestore.getInstance()
+            .collection("pengguna")
+            .document(currentUser.getUid()) 
+            .set(dataLengkap) // Perintah MENULIS/MENIMPA data
+            .addOnSuccessListener(aVoid -> Log.d(TAG, "✅ Data profil berhasil disimpan untuk UID: " + currentUser.getUid()))
+            .addOnFailureListener(e -> Log.e(TAG, "❌ Gagal simpan profil: " + e.getMessage()));
+            
+    } else {
+        Log.e(TAG, "️ User Firebase NULL saat login TeamTalk!");
     }
 }
 //======ahirlogica
