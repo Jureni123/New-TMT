@@ -182,7 +182,10 @@ public class MainActivity extends AppCompatActivity
     boolean isProximitySensorRegistered = false;
     Map<Integer, User> users = new HashMap<>();
 private UserProfileManager profileManager; 
-
+// === TAMBAHKAN DI SINI ===
+    private static final int REQUEST_AVATAR_PICK = 9002;
+    private Button btnChangeAvatar;
+    // =========================
     // === SISTEM CACHE AVATAR OPTIMIZED ===
     private static class AvatarData {
         String url;
@@ -1637,35 +1640,28 @@ class ChannelListAdapter extends BaseAdapter {
 
     private interface OnButtonInteractionListener extends OnTouchListener, OnClickListener {
     }
-
+//------===========
+   
     private void setupButtons() {
-
         final Button tx_btn = findViewById(R.id.transmit_voice);
         tx_btn.setAccessibilityDelegate(accessibilityAssistant);
 
         OnButtonInteractionListener txButtonListener = new OnButtonInteractionListener() {
-
             boolean tx_state = false;
             long tx_down_start = 0;
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 boolean tx = event.getAction() != MotionEvent.ACTION_UP;
-
-                if(tx != tx_state) {
-
-                    if(!tx) {
-                        if(System.currentTimeMillis() - tx_down_start < 800) {
+                if (tx != tx_state) {
+                    if (!tx) {
+                        if (System.currentTimeMillis() - tx_down_start < 800) {
                             tx = true;
                             tx_down_start = 0;
-                        }
-                        else {
+                        } else {
                             tx_down_start = System.currentTimeMillis();
                         }
-
-                        //Log.i(TAG, "TX is now: " + tx + " diff " + (System.currentTimeMillis() - tx_down_start));
                     }
-
                     if (getService().isVoiceActivationEnabled())
                         getService().enableVoiceActivation(false);
                     getService().enableVoiceTransmission(tx);
@@ -1676,11 +1672,10 @@ class ChannelListAdapter extends BaseAdapter {
 
             @Override
             public void onClick(View v) {
-                if(System.currentTimeMillis() - tx_down_start < 800) {
+                if (System.currentTimeMillis() - tx_down_start < 800) {
                     tx_state = true;
                     tx_down_start = 0;
-                }
-                else {
+                } else {
                     tx_state = false;
                     tx_down_start = System.currentTimeMillis();
                 }
@@ -1713,7 +1708,7 @@ class ChannelListAdapter extends BaseAdapter {
                     prefs.put(Preferences.PREF_SOUNDSYSTEM_MASTERVOLUME, outputVolume);
                     volLevel.setText(progress + "%");
                     volLevel.setContentDescription(getString(R.string.speaker_volume_description, volLevel.getText()));
-            }     else if (seekBar == micSeekBar) {
+                } else if (seekBar == micSeekBar) {
                     if (getService().isVoiceActivationEnabled()) {
                         int voxLevel = progress;
                         getClient().setVoiceActivationLevel(voxLevel);
@@ -1728,15 +1723,13 @@ class ChannelListAdapter extends BaseAdapter {
                         micLevel.setContentDescription(getString(R.string.mic_gain_description, micLevel.getText()));
                     }
                 }
-        }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
             }
 
             @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
         };
 
         masterSeekBar.setOnSeekBarChangeListener(volListener);
@@ -1751,10 +1744,7 @@ class ChannelListAdapter extends BaseAdapter {
             if ((mConnection != null) && mConnection.isBound()) {
                 getService().setMute(!getService().isMute());
                 adjustMuteButton((ImageButton) v);
-
-                int level = getService().isMute() ?
-                    0 :
-                    Utils.refVolumeToPercent(getClient().getSoundOutputVolume());
+                int level = getService().isMute() ? 0 : Utils.refVolumeToPercent(getClient().getSoundOutputVolume());
                 volLevel.setText(level + "%");
                 volLevel.setContentDescription(getString(R.string.speaker_volume_description, volLevel.getText()));
             }
@@ -1766,10 +1756,16 @@ class ChannelListAdapter extends BaseAdapter {
                 if (getService().isVoiceTransmissionEnabled())
                     getService().enableVoiceTransmission(false);
                 getService().enableVoiceActivation(!getService().isVoiceActivationEnabled());
-
                 adjustVoiceGain();
             }
         });
+
+        // === INISIALISASI TOMBOL GANTI FOTO ===
+        btnChangeAvatar = findViewById(R.id.btn_change_avatar);
+        if (btnChangeAvatar != null) {
+            btnChangeAvatar.setOnClickListener(v -> openGalleryForAvatar());
+        }
+        // ======================================
     }
     //=======BATAS BAGIAN 3==
     
