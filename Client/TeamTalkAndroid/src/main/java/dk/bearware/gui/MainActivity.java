@@ -1287,7 +1287,8 @@ class ChannelListAdapter extends BaseAdapter {
                     } else usericon.setImageResource(icon_resource);
                 } else {
                     // INI KUNCINYA: Panggil Manager, tidak ada query Firestore di sini lagi!
-                    profileManager.loadAvatar(user.szNickname, usericon, icon_resource);
+                    profileManager.loadAvatarByName(user.szNickname, usericon, icon_resource);
+                   // profileManager.loadAvatar(user.szNickname, usericon, icon_resource);
                 }
                 // ================================================
 
