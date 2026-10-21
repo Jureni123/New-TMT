@@ -1946,52 +1946,51 @@ class ChannelListAdapter extends BaseAdapter {
             activecmds.remove(cmdId);
         }
     }
-
 @Override
 public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
     textmsgAdapter.setMyUserID(my_userid);
     
-    // === LOGIKA OTOMATIS UPDATE TEAMTALK_ID ===
     FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
     if (currentUser != null) {
         FirebaseFirestore db = FirebaseFirestore.getInstance();
+        String uid = currentUser.getUid(); // Ambil UID dulu
         
-        // Cari dokumen user berdasarkan Email (karena email tidak berubah)
+        // Cari dokumen berdasarkan Email
         db.collection("pengguna")
           .whereEqualTo("email", currentUser.getEmail()) 
           .limit(1)
           .get()
           .addOnSuccessListener(querySnapshot -> {
+              Map<String, Object> updates = new HashMap<>();
+              updates.put("teamtalk_id", my_userid);
+              updates.put("lastLogin", System.currentTimeMillis());
+              
               if (!querySnapshot.isEmpty()) {
-                  // Dokumen ketemu! Update teamtalk_id dengan ID TeamTalk terbaru
+                  // ✅ DOKUMEN ADA: Update saja
                   String docId = querySnapshot.getDocuments().get(0).getId();
-                  
-                  Map<String, Object> updates = new HashMap<>();
-                  updates.put("teamtalk_id", my_userid); // <--- INI KUNCINYA!
-                  updates.put("lastLogin", System.currentTimeMillis());
-                  
                   db.collection("pengguna").document(docId)
                     .update(updates)
-                    .addOnSuccessListener(a -> Log.d(TAG, "Auto-update teamtalk_id: " + my_userid))
+                    .addOnSuccessListener(a -> Log.d(TAG, "TeamTalk ID diupdate: " + my_userid))
                     .addOnFailureListener(e -> Log.e(TAG, "Gagal update: " + e.getMessage()));
                     
               } else {
-                  // Jika dokumen belum ada (user baru), buat baru
-                  Map<String, Object> newData = new HashMap<>();
-                  newData.put("foto_profil_url", currentUser.getPhotoUrl() != null ? 
+                  // ✅ DOKUMEN TIDAK ADA: Buat BARU dengan ID = UID (BUKAN ADD RANDOM!)
+                  updates.put("foto_profil_url", currentUser.getPhotoUrl() != null ? 
                                currentUser.getPhotoUrl().toString() : "");
-                  newData.put("email", currentUser.getEmail());
-                  newData.put("teamtalk_id", my_userid);
-                  newData.put("displayName", currentUser.getDisplayName());
+                  updates.put("email", currentUser.getEmail());
+                  updates.put("displayName", currentUser.getDisplayName() != null ? 
+                               currentUser.getDisplayName() : "Unknown");
                   
-                  db.collection("pengguna").add(newData)
-                    .addOnSuccessListener(a -> Log.d(TAG, "Dokumen baru dibuat ID: " + my_userid))
+                  // GUNAKAN set() DENGAN UID SEBAGAI ID DOKUMEN
+                  db.collection("pengguna").document(uid)
+                    .set(updates)
+                    .addOnSuccessListener(a -> Log.d(TAG, "Dokumen baru dibuat dengan UID: " + uid))
                     .addOnFailureListener(e -> Log.e(TAG, "Gagal buat dokumen: " + e.getMessage()));
               }
           });
     }
-    // === AKHIR LOGIKA OTOMATIS ===
 }
+//======ahirlogica
     @Override
     public void onCmdMyselfLoggedOut() {
         accessibilityAssistant.lockEvents();
