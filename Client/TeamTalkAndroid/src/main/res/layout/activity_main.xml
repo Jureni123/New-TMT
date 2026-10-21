@@ -1,5 +1,6 @@
 <!-- GANTI SELURUH RELATIVELayout LAMA DENGAN INI -->
 <LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -55,16 +56,19 @@
             android:orientation="vertical"
             android:gravity="center">
             
-            <TextView android:id="@+id/miclevel_text" 
+            <TextView 
+                android:id="@+id/miclevel_text" 
                 android:layout_width="wrap_content" 
                 android:layout_height="wrap_content" 
                 android:textSize="9sp"/>
                 
-            <SeekBar android:id="@+id/mic_gainSeekBar" 
+            <SeekBar 
+                android:id="@+id/mic_gainSeekBar" 
                 android:layout_width="match_parent" 
                 android:layout_height="wrap_content"/>
                 
-            <ImageButton android:id="@+id/voxSwitch" 
+            <ImageButton 
+                android:id="@+id/voxSwitch" 
                 android:layout_width="32dp" 
                 android:layout_height="32dp" 
                 android:src="@drawable/mic_green"
@@ -92,16 +96,19 @@
             android:orientation="vertical"
             android:gravity="center">
             
-            <TextView android:id="@+id/vollevel_text" 
+            <TextView 
+                android:id="@+id/vollevel_text" 
                 android:layout_width="wrap_content" 
                 android:layout_height="wrap_content" 
                 android:textSize="9sp"/>
                 
-            <SeekBar android:id="@+id/master_volSeekBar" 
+            <SeekBar 
+                android:id="@+id/master_volSeekBar" 
                 android:layout_width="match_parent" 
                 android:layout_height="wrap_content"/>
                 
-            <ImageButton android:id="@+id/speakerBtn" 
+            <ImageButton 
+                android:id="@+id/speakerBtn" 
                 android:layout_width="32dp" 
                 android:layout_height="32dp" 
                 android:src="@drawable/speaker_blue"
@@ -123,7 +130,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="36dp"
-            android:text="📷 Foto"
+            android:text="Foto"
             android:textSize="10sp"
             android:backgroundTint="#33b5e5"
             android:textColor="#fff"
@@ -133,7 +140,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="36dp"
-            android:text="⚙️ Set"
+            android:text="Set"
             android:textSize="10sp"
             android:backgroundTint="#757575"
             android:textColor="#fff"
@@ -144,7 +151,7 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="36dp"
-            android:text="📁 File"
+            android:text="File"
             android:textSize="10sp"
             android:backgroundTint="#757575"
             android:textColor="#fff"
