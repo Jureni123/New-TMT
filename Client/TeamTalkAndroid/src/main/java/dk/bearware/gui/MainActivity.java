@@ -96,13 +96,15 @@ import java.util.Set;
 import java.util.Vector;
 import java.util.List;
 //import baru
-import android.graphics.Bitmap;
 //import android.graphics.ThumbnailUtils;
 import android.provider.MediaStore;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import android.util.Base64;
-
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory; // <--- TAMBAHKAN INI
+import android.graphics.Color;
+// ... import lainnya ...
 import dk.bearware.Channel;
 import dk.bearware.ChannelType;
 import dk.bearware.ClientFlag;
