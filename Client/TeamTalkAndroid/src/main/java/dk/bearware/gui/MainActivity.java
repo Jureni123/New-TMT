@@ -96,14 +96,15 @@ import java.util.Set;
 import java.util.Vector;
 import java.util.List;
 //import baru
-//import android.graphics.ThumbnailUtils;
-import android.provider.MediaStore;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.ImageDecoder; // Wajib untuk Android 10+
+//import android.os.Build;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import android.util.Base64;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory; // <--- TAMBAHKAN INI
-import android.graphics.Color;
+
+
 // ... import lainnya ...
 import dk.bearware.Channel;
 import dk.bearware.ChannelType;
@@ -676,7 +677,7 @@ channelsAdapter = new ChannelListAdapter(this.getBaseContext(), profileManager);
         Log.d(TAG, "Activity destroyed " + this.hashCode());
     }
 
-    @Override
+   /* @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if ((requestCode == REQUEST_SELECT_FILE) && (resultCode == RESULT_OK)) {
             Uri uri = data.getData();
@@ -694,7 +695,42 @@ channelsAdapter = new ChannelListAdapter(this.getBaseContext(), profileManager);
         } else {
             super.onActivityResult(requestCode, resultCode, data);
         }
+    }*/
+//========stars
+@Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        // === JALUR 1: AVATAR PROFIL (UNTUK SEMUA USER) ===
+        // Ini menangani tombol [FOTO] di bawah
+        if (requestCode == REQUEST_AVATAR_PICK) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                // Langsung proses foto, jangan masuk ke logika upload file
+                processAndSendAvatar(data.getData());
+            } else {
+                Toast.makeText(this, "Pemilihan foto dibatalkan", Toast.LENGTH_SHORT).show();
+            }
+            return; // PENTING: Stop eksekusi di sini!
+        }
+
+        // === JALUR 2: UPLOAD FILE CHANNEL (KHUSUS ADMIN/OPERATOR) ===
+        // Ini menangani menu "Unggah File" di pojok kanan atas
+        if ((requestCode == REQUEST_SELECT_FILE) && (resultCode == RESULT_OK)) {
+            Uri uri = data.getData();
+            String path = AbsolutePathHelper.getRealPath(this.getBaseContext(), uri);
+            if (path != null) {
+                File localFile = new File(path);
+                if (localFile.canRead()) {
+                    startFileUpload(path);
+                } else {
+                    new FileCopyingTask().execute(uri);
+                }
+            } else {
+                new FileCopyingTask().execute(uri);
+            }
+        } else {
+            super.onActivityResult(requestCode, resultCode, data);
+        }
     }
+    //===="==========stop
 
     private boolean startFileUpload(String path) {
         String remoteName = filesAdapter.getRemoteName(path);
@@ -1776,43 +1812,59 @@ Bitmap cachedAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), use
     }
     
 // ======= METHOD BARU UNTUK AVATAR (TEMPEL DI SINI) =======
+    // Method pembuka galeri saat tombol [FOTO] diklik
     private void openGalleryForAvatar() {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.setType("image/*");
         startActivityForResult(intent, REQUEST_AVATAR_PICK);
     }
 
+    // Method pemroses gambar setelah dipilih dari galeri
     private void processAndSendAvatar(Uri imageUri) {
         try {
-            // 1. Ambil & Resize Gambar
-            Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+            Bitmap bitmap;
+            // Ambil gambar dengan cara aman untuk semua versi Android
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ImageDecoder.Source source = ImageDecoder.createSource(getContentResolver(), imageUri);
+                bitmap = ImageDecoder.decodeBitmap(source);
+            } else {
+                bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+            }
+
+            if (bitmap == null) throw new IOException("Gagal memuat gambar");
+
+            // Resize ke 150x150 agar muat di protokol TeamTalk
             int targetSize = 150; 
             Bitmap resized = Bitmap.createScaledBitmap(bitmap, targetSize, targetSize, true);
             
-            // 2. SIMPAN LOKAL DENGAN KUALITAS TINGGI (PNG)
-            // Agar saat offline/restart foto tetap tajam dan tidak pecah
+            // Simpan ke HP sendiri dulu (agar langsung tampil di list)
             int myId = getClient().getMyUserID();
             AvatarHelper.saveAvatarToLocal(this, myId, resized, false);
             
-            // 3. SIAPKAN DATA UNTUK DIKIRIM (JPEG RINGAN)
+            // Kompresi jadi kecil untuk dikirim via jaringan
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            resized.compress(Bitmap.CompressFormat.JPEG, 60, baos); // Kompresi 60% untuk hemat bandwidth
+            resized.compress(Bitmap.CompressFormat.JPEG, 60, baos);
             byte[] imageBytes = baos.toByteArray();
             
+            // Encode jadi teks Base64
             String base64Image = Base64.encodeToString(imageBytes, Base64.NO_WRAP);
-            
-            // 4. KIRIM KE SERVER TEAMTALK
             String payload = "[AVT]" + myId + ":" + base64Image;
             
+            // Kirim lewat jalur pesan kustom TeamTalk
             TextMessage msg = new TextMessage();
             msg.nMsgType = TextMsgType.MSGTYPE_CUSTOM; 
             msg.szMessage = payload;
-            getClient().doTextMessage(msg);
             
-            Toast.makeText(this, "Foto diperbarui & tersimpan permanen!", Toast.LENGTH_SHORT).show();
+            int cmdId = getClient().doTextMessage(msg);
             
-        } catch (IOException e) {
-            Toast.makeText(this, "Gagal proses foto: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            if (cmdId > 0) {
+                Toast.makeText(this, "Foto profil berhasil diperbarui!", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Gagal mengirim foto (Server menolak)", Toast.LENGTH_LONG).show();
+            }
+            
+        } catch (Exception e) {
+            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
             e.printStackTrace();
         }
     }
