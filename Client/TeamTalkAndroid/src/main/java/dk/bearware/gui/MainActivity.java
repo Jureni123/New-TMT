@@ -1287,20 +1287,18 @@ class ChannelListAdapter extends BaseAdapter {
                               (isAdmin ? getString(R.string.user_state_admin) : "");
                 nickname.setContentDescription(desc.trim());
                 status.setContentDescription(away ? getString(R.string.user_state_away) + " " + user.szStatusMsg : null);
-// === LOGIKA FOTO PROFIL YANG SUDAH DIBERSIHKAN ===
-                boolean isMyself = (user.nUserID == getService().getTTInstance().getMyUserID());
-                if (isMyself) {
-                    FirebaseUser fbUser = FirebaseAuth.getInstance().getCurrentUser();
-                    if (fbUser != null && fbUser.getPhotoUrl() != null) {
-                        Glide.with(MainActivity.this).load(fbUser.getPhotoUrl()).circleCrop().placeholder(icon_resource).error(icon_resource).into(usericon);
-                    } else usericon.setImageResource(icon_resource);
+// === LOGIKA FOTO PROFIL BARU (HANYA PAKAI CACHE LOKAL/TEAMTALK) ===
+                // Cek apakah ada foto custom di cache lokal (dari AvatarHelper)
+                Bitmap cachedAvatar = AvatarHelper.getAvatarFromLocal(context, user.nUserID);
+                
+                if (cachedAvatar != null) {
+                    // Jika ada foto custom, tampilkan foto tersebut
+                    usericon.setImageBitmap(cachedAvatar);
                 } else {
-                    // INI KUNCINYA: Panggil Manager, tidak ada query Firestore di sini lagi!
-                    profileManager.loadAvatarByName(user.szNickname, usericon, icon_resource);
-                   // profileManager.loadAvatar(user.szNickname, usericon, icon_resource);
+                    // Jika tidak ada, tampilkan ikon gender bawaan TeamTalk
+                    usericon.setImageResource(icon_resource);
                 }
-                // ================================================
-                // ================================================
+                // ===============================================================
 
                 usericon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
                 Button sndmsg = convertView.findViewById(R.id.msg_btn);
