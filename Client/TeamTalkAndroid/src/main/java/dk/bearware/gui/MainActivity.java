@@ -1683,52 +1683,27 @@ Bitmap cachedAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), use
 
     private interface OnButtonInteractionListener extends OnTouchListener, OnClickListener {
     }
-//------===========
+//------===========bagian ptt
    
     private void setupButtons() {
         final Button tx_btn = findViewById(R.id.transmit_voice);
         tx_btn.setAccessibilityDelegate(accessibilityAssistant);
 
-        OnButtonInteractionListener txButtonListener = new OnButtonInteractionListener() {
-            boolean tx_state = false;
-            long tx_down_start = 0;
-
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                boolean tx = event.getAction() != MotionEvent.ACTION_UP;
-                if (tx != tx_state) {
-                    if (!tx) {
-                        if (System.currentTimeMillis() - tx_down_start < 800) {
-                            tx = true;
-                            tx_down_start = 0;
-                        } else {
-                            tx_down_start = System.currentTimeMillis();
-                        }
-                    }
-                    if (getService().isVoiceActivationEnabled())
-                        getService().enableVoiceActivation(false);
-                    getService().enableVoiceTransmission(tx);
-                }
-                tx_state = tx;
-                return true;
-            }
-
-            @Override
-            public void onClick(View v) {
-                if (System.currentTimeMillis() - tx_down_start < 800) {
-                    tx_state = true;
-                    tx_down_start = 0;
-                } else {
-                    tx_state = false;
-                    tx_down_start = System.currentTimeMillis();
-                }
-                if (getService().isVoiceActivationEnabled())
+        // === LOGIKA PTT TOGGLE MODE (SEDERHANA & PASTI) ===
+        tx_btn.setOnClickListener(v -> {
+            if ((mConnection != null) && mConnection.isBound()) {
+                boolean isCurrentlyTx = getService().isVoiceTransmitting();
+                
+                // Matikan Voice Activation jika sedang aktif agar tidak konflik
+                if (getService().isVoiceActivationEnabled()) {
                     getService().enableVoiceActivation(false);
-                getService().enableVoiceTransmission(tx_state);
-            }
-        };
+                }
 
-        tx_btn.setOnTouchListener(txButtonListener);
+                // Toggle state: Jika sedang bicara -> berhenti. Jika diam -> bicara.
+                getService().enableVoiceTransmission(!isCurrentlyTx);
+            }
+        });
+        // ======================PTT OFF============================
         
         final SeekBar masterSeekBar = findViewById(R.id.master_volSeekBar);
         final SeekBar micSeekBar = findViewById(R.id.mic_gainSeekBar);
@@ -1778,10 +1753,6 @@ Bitmap cachedAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), use
         masterSeekBar.setOnSeekBarChangeListener(volListener);
         micSeekBar.setOnSeekBarChangeListener(volListener);
 
-        if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) && accessibilityAssistant.isServiceActive()) {
-            tx_btn.setOnClickListener(txButtonListener);
-        }
-
         ImageButton speakerBtn = findViewById(R.id.speakerBtn);
         speakerBtn.setOnClickListener(v -> {
             if ((mConnection != null) && mConnection.isBound()) {
@@ -1796,8 +1767,10 @@ Bitmap cachedAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), use
         ImageButton voxSwitch = findViewById(R.id.voxSwitch);
         voxSwitch.setOnClickListener(v -> {
             if ((mConnection != null) && mConnection.isBound()) {
-                if (getService().isVoiceTransmissionEnabled())
+                // Jika VOX dinyalakan, matikan PTT manual dulu agar tidak tabrakan
+                if (getService().isVoiceTransmissionEnabled()) {
                     getService().enableVoiceTransmission(false);
+                }
                 getService().enableVoiceActivation(!getService().isVoiceActivationEnabled());
                 adjustVoiceGain();
             }
@@ -1820,54 +1793,56 @@ Bitmap cachedAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), use
     }
 
     // Method pemroses gambar setelah dipilih dari galeri
-    private void processAndSendAvatar(Uri imageUri) {
+private void processAndSendAvatar(Uri imageUri) {
         try {
+            int myId = getClient().getMyUserID();
+            if (myId <= 0 || !getClient().isConnected()) {
+                Toast.makeText(this, "Harus terhubung ke server!", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            int currentChanId = getClient().getMyChannelID();
+            if (currentChanId <= 0) {
+                Toast.makeText(this, "Harus gabung channel dulu!", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
             Bitmap bitmap;
-            
-            // Gunakan ImageDecoder (Android 10+) atau fallback ke MediaStore (Android 9 ke bawah)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 ImageDecoder.Source source = ImageDecoder.createSource(getContentResolver(), imageUri);
                 bitmap = ImageDecoder.decodeBitmap(source);
             } else {
-                // Fallback aman untuk Android lama tanpa perlu import MediaStore.Images
                 bitmap = android.provider.MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
             }
 
             if (bitmap == null) throw new IOException("Gagal memuat gambar");
 
-            // Resize ke 150x150 agar muat di protokol TeamTalk
-            int targetSize = 150; 
-            Bitmap resized = Bitmap.createScaledBitmap(bitmap, targetSize, targetSize, true);
-            
-            // Simpan ke HP sendiri dulu (agar langsung tampil di list)
-            int myId = getClient().getMyUserID();
+            Bitmap resized = Bitmap.createScaledBitmap(bitmap, 150, 150, true);
             AvatarHelper.saveAvatarToLocal(this, myId, resized, false);
             
-            // Kompresi jadi kecil untuk dikirim via jaringan
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             resized.compress(Bitmap.CompressFormat.JPEG, 60, baos);
             byte[] imageBytes = baos.toByteArray();
             
-            // Encode jadi teks Base64
-            String base64Image = Base64.encodeToString(imageBytes, Base64.NO_WRAP);
-            String payload = "[AVT]" + myId + ":" + base64Image;
+            if (imageBytes.length > 7000) {
+                Toast.makeText(this, "Foto terlalu besar", Toast.LENGTH_LONG).show();
+                return;
+            }
             
-            // Kirim lewat jalur pesan kustom TeamTalk
+            String payload = "[AVT]" + myId + ":" + Base64.encodeToString(imageBytes, Base64.NO_WRAP);
+            
+            // INI KUNCINYA: Beri alamat channel yang jelas
             TextMessage msg = new TextMessage();
-            msg.nMsgType = TextMsgType.MSGTYPE_CUSTOM; 
+            msg.nMsgType = TextMsgType.MSGTYPE_CHANNEL; 
+            msg.nChannelID = currentChanId;             
             msg.szMessage = payload;
             
             int cmdId = getClient().doTextMessage(msg);
-            
             if (cmdId > 0) {
-                Toast.makeText(this, "Foto profil berhasil diperbarui!", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, "Gagal mengirim foto (Server menolak)", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Foto dikirim ke channel!", Toast.LENGTH_SHORT).show();
             }
-            
         } catch (Exception e) {
             Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
-            e.printStackTrace();
         }
     }
     // =======================================================
@@ -2210,36 +2185,54 @@ private void saveUserProfile(FirebaseUser user, int teamtalkUserId) {
         textmsgAdapter.notifyDataSetChanged();
         accessibilityAssistant.unlockEvents();
     }
-
-    @Override
+//============cmd========
+@Override
     public void onCmdUserJoinedChannel(User user) {
-
+        // Update data user di memori lokal
         users.put(user.nUserID, user);
         
-        if(user.nUserID == getClient().getMyUserID()) {
-            //myself joined channel
+        // === LOGIKA AVATAR HANDSHAKE (BARU) ===
+        // Jika YANG JOIN ADALAH DIRI SENDIRI (Saya baru masuk channel)
+        if (user.nUserID == getClient().getMyUserID()) {
             Channel chan = getService().getChannels().get(user.nChannelID);
             setCurrentChannel(chan);
             filesAdapter.update(curchannel);
-
             setMyChannel(chan);
 
-            //update the displayed channel to the one we're currently in
+            // Kirim "Permintaan Avatar" ke semua orang di channel ini
+            // Agar mereka mau kirim ulang foto mereka ke saya
+            int myChanId = getClient().getMyChannelID();
+            if (myChanId > 0) {
+                TextMessage reqMsg = new TextMessage();
+                reqMsg.nMsgType = TextMsgType.MSGTYPE_CHANNEL;
+                reqMsg.nChannelID = myChanId;
+                reqMsg.szMessage = "[AVT_REQ]"; 
+                getClient().doTextMessage(reqMsg);
+                Log.d(TAG, " Mengirim permintaan avatar ke channel " + myChanId);
+            }
+
+            // Refresh tampilan list channel
             accessibilityAssistant.lockEvents();
             channelsAdapter.notifyDataSetChanged();
             accessibilityAssistant.unlockEvents();
+            
+            return; // Selesai untuk diri sendiri, jangan lanjut ke logika orang lain
         }
-        else if(curchannel != null && curchannel.nChannelID == user.nChannelID) {
-            //other user joined current channel
+        // ======================================
+
+        // Logika Asli TeamTalk untuk Orang Lain yang Join
+        else if (curchannel != null && curchannel.nChannelID == user.nChannelID) {
+            // User lain join di channel yang sedang saya lihat
         }
         
-        if(mychannel != null && mychannel.nChannelID == user.nChannelID) {
-            //event took place in current channel
+        if (mychannel != null && mychannel.nChannelID == user.nChannelID) {
+            // Event terjadi di channel tempat saya berada
             
-            if(user.nUserID != getClient().getMyUserID()) {
+            if (user.nUserID != getClient().getMyUserID()) {
                 accessibilityAssistant.lockEvents();
                 textmsgAdapter.notifyDataSetChanged();
                 channelsAdapter.notifyDataSetChanged();
+                
                 if (getClient().getMyChannelID() == user.nChannelID) {
                     if (sounds.get(SOUND_USERJOIN) != 0)
                         audioIcons.play(sounds.get(SOUND_USERJOIN), 1.0f, 1.0f, 0, 0, 1.0f);
@@ -2267,7 +2260,7 @@ private void saveUserProfile(FirebaseUser user, int teamtalkUserId) {
             accessibilityAssistant.unlockEvents();
         }
     }
-
+//======="==========
     @Override
     public void onCmdUserLeftChannel(int channelid, User user) {
 
@@ -2318,137 +2311,145 @@ private void saveUserProfile(FirebaseUser user, int teamtalkUserId) {
         }
     }
     // bagian kirim foto via pesan===
-
 @Override
     public void onCmdUserTextMessage(TextMessage textmessage) {
         User sender;
         String name;
-        
-        // === LOGIKA PENERIMA AVATAR (DITEMPATKAN DI SINI) ===
-        if (textmessage.nMsgType == TextMsgType.MSGTYPE_CUSTOM && 
-            textmessage.szMessage != null && 
-            textmessage.szMessage.startsWith("[AVT]")) {
+
+        // === 1. FILTER PERMINTAAN AVATAR (HANDSHAKE) ===
+        if (textmessage.szMessage != null && textmessage.szMessage.equals("[AVT_REQ]")) {
+            int requesterId = textmessage.nFromUserID;
+            int myId = getClient().getMyUserID();
             
-            try {
-                // Pisahkan ID User dan Data Base64
-                String[] parts = textmessage.szMessage.substring(5).split(":", 2); 
-                if (parts.length == 2) {
-                    int userId = Integer.parseInt(parts[0]);
-                    String base64Data = parts[1];
+            Bitmap myAvatar = AvatarHelper.getAvatarFromLocal(this, myId);
+            
+            if (myAvatar != null) {
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                myAvatar.compress(Bitmap.CompressFormat.JPEG, 60, baos);
+                byte[] imageBytes = baos.toByteArray();
+                
+                if (imageBytes.length <= 7000) {
+                    String base64Image = Base64.encodeToString(imageBytes, Base64.NO_WRAP);
+                    String payload = "[AVT]" + myId + ":" + base64Image;
                     
-                    // Decode Base64 kembali jadi Bitmap
+                    TextMessage replyMsg = new TextMessage();
+                    replyMsg.nMsgType = TextMsgType.MSGTYPE_USER;
+                    replyMsg.nFromUserID = myId;
+                    replyMsg.nToUserID = requesterId;
+                    replyMsg.szMessage = payload;
+                    
+                    getClient().doTextMessage(replyMsg);
+                    Log.d(TAG, " Mengirim avatar balasan ke user " + requesterId);
+                }
+            }
+            return; 
+        }
+
+        // === 2. FILTER PENERIMA AVATAR ===
+        if (textmessage.szMessage != null && textmessage.szMessage.startsWith("[AVT]")) {
+            try {
+                String payload = textmessage.szMessage.substring(5);
+                int separatorIndex = payload.indexOf(':');
+                
+                if (separatorIndex > 0) {
+                    int userId = Integer.parseInt(payload.substring(0, separatorIndex));
+                    String base64Data = payload.substring(separatorIndex + 1);
+                    
                     byte[] decodedBytes = Base64.decode(base64Data, Base64.NO_WRAP);
                     Bitmap bmp = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.length);
                     
                     if (bmp != null) {
-                        // Simpan ke memori HP user penerima (Persisten Offline)
                         AvatarHelper.saveAvatarToLocal(this, userId, bmp, false);
-                        
-                        // Refresh list channel agar foto langsung muncul tanpa delay
                         runOnUiThread(() -> {
                             if (channelsAdapter != null) channelsAdapter.notifyDataSetChanged();
                         });
                     }
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Gagal terima avatar: " + e.getMessage());
+                Log.e(TAG, " Gagal decode avatar: " + e.getMessage());
             }
-            return; // STOP DI SINI, jangan lanjut ke logika chat/typing biasa
+            return; 
         }
-        // ================================================
 
+        // === LOGIKA CHAT ASLI TEAMTALK ===
         MyTextMessage completemsg = MyTextMessage.mergeMessage(txtmsgMergeBuffer, new MyTextMessage(textmessage, ""));
         
         switch (textmessage.nMsgType) {
-        case TextMsgType.MSGTYPE_CHANNEL :
-            accessibilityAssistant.lockEvents();
-            textmsgAdapter.notifyDataSetChanged();
-            accessibilityAssistant.unlockEvents();
-
-            if (completemsg == null) break;
-
-            if (textmessage.nFromUserID != getService().getTTInstance().getMyUserID()) {
-                if (sounds.get(SOUND_CHANMSG) != 0)
-                    audioIcons.play(sounds.get(SOUND_CHANMSG), 1.0f, 1.0f, 0, 0, 1.0f);
-                if (ttsWrapper != null && prefs.get("channel_message_checkbox", false)) {
+            case TextMsgType.MSGTYPE_CHANNEL:
+                accessibilityAssistant.lockEvents();
+                textmsgAdapter.notifyDataSetChanged();
+                accessibilityAssistant.unlockEvents();
+                if (completemsg == null) break;
+                if (textmessage.nFromUserID != getService().getTTInstance().getMyUserID()) {
+                    if (sounds.get(SOUND_CHANMSG) != 0) audioIcons.play(sounds.get(SOUND_CHANMSG), 1.0f, 1.0f, 0, 0, 1.0f);
+                    if (ttsWrapper != null && prefs.get("channel_message_checkbox", false)) {
+                        sender = getService().getUsers().get(textmessage.nFromUserID);
+                        name = Utils.getDisplayName(getBaseContext(), sender);
+                        ttsWrapper.speak(getString(R.string.text_tts_channel_message, (sender != null) ? name : "", completemsg.szMessage));
+                    }
+                } else if (textmessage.nFromUserID == getService().getTTInstance().getMyUserID()) {
+                    if (sounds.get(SOUND_CHANMSGSENT) != 0) audioIcons.play(sounds.get(SOUND_CHANMSGSENT), 1.0f, 1.0f, 0, 0, 1.0f);
+                    if (ttsWrapper != null && prefs.get("channel_message_sent_checkbox", false)) {
+                        ttsWrapper.speak(getString(R.string.text_tts_channel_message_sent, completemsg.szMessage));
+                    }
+                }
+                Log.d(TAG, "Channel message in " + this.hashCode());
+                break;
+                
+            case TextMsgType.MSGTYPE_BROADCAST:
+                accessibilityAssistant.lockEvents();
+                textmsgAdapter.notifyDataSetChanged();
+                accessibilityAssistant.unlockEvents();
+                if (completemsg == null) break;
+                if (sounds.get(SOUND_BCASTMSG) != 0) audioIcons.play(sounds.get(SOUND_BCASTMSG), 1.0f, 1.0f, 0, 0, 1.0f);
+                if (ttsWrapper != null && prefs.get("broadcast_message_checkbox", false)) {
                     sender = getService().getUsers().get(textmessage.nFromUserID);
                     name = Utils.getDisplayName(getBaseContext(), sender);
-                    ttsWrapper.speak(getString(R.string.text_tts_channel_message, (sender != null) ? name : "", completemsg.szMessage));
+                    ttsWrapper.speak(getString(R.string.text_tts_broadcast_message, (sender != null) ? name : "", completemsg.szMessage));
                 }
-            } else if (textmessage.nFromUserID == getService().getTTInstance().getMyUserID()) {
-                if (sounds.get(SOUND_CHANMSGSENT) != 0)
-                    audioIcons.play(sounds.get(SOUND_CHANMSGSENT), 1.0f, 1.0f, 0, 0, 1.0f);
-                if (ttsWrapper != null && prefs.get("channel_message_sent_checkbox", false)) {
-                    ttsWrapper.speak(getString(R.string.text_tts_channel_message_sent, completemsg.szMessage));
-                }
-            }
-            Log.d(TAG, "Channel message in " + this.hashCode());
-            break;
-
-        case TextMsgType.MSGTYPE_BROADCAST :
-            accessibilityAssistant.lockEvents();
-            textmsgAdapter.notifyDataSetChanged();
-            accessibilityAssistant.unlockEvents();
-
-            if (completemsg == null) break;
-
-            if (sounds.get(SOUND_BCASTMSG) != 0)
-                audioIcons.play(sounds.get(SOUND_BCASTMSG), 1.0f, 1.0f, 0, 0, 1.0f);
-            if (ttsWrapper != null && prefs.get("broadcast_message_checkbox", false)) {
+                Log.d(TAG, "Broadcast message in " + this.hashCode());
+                break;
+                
+            case TextMsgType.MSGTYPE_USER:
+                if (completemsg == null) break;
+                if (sounds.get(SOUND_USERMSG) != 0) audioIcons.play(sounds.get(SOUND_USERMSG), 1.0f, 1.0f, 0, 0, 1.0f);
                 sender = getService().getUsers().get(textmessage.nFromUserID);
                 name = Utils.getDisplayName(getBaseContext(), sender);
-                ttsWrapper.speak(getString(R.string.text_tts_broadcast_message, (sender != null) ? name : "", completemsg.szMessage));
-            }
-            Log.d(TAG, "Broadcast message in " + this.hashCode());
-            break;
-
-        case TextMsgType.MSGTYPE_USER :
-            if (completemsg == null) break;
-
-            if (sounds.get(SOUND_USERMSG) != 0)
-                audioIcons.play(sounds.get(SOUND_USERMSG), 1.0f, 1.0f, 0, 0, 1.0f);
-            
-            sender = getService().getUsers().get(textmessage.nFromUserID);
-            name = Utils.getDisplayName(getBaseContext(), sender);
-            String senderName = (sender != null) ? name : "";
-            if (ttsWrapper != null && prefs.get("private_message_checkbox", false))
-                ttsWrapper.speak(getString(R.string.text_tts_private_message, senderName, completemsg.szMessage));
+                String senderName = (sender != null) ? name : "";
+                if (ttsWrapper != null && prefs.get("private_message_checkbox", false))
+                    ttsWrapper.speak(getString(R.string.text_tts_private_message, senderName, completemsg.szMessage));
+                    
+                Intent action = new Intent(this, TextMessageActivity.class);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    NotificationChannel mChannel = new NotificationChannel(MSG_NOTIFICATION_CHANNEL_ID, "Teamtalk incoming message", NotificationManager.IMPORTANCE_HIGH);
+                    mChannel.enableVibration(false);
+                    mChannel.setVibrationPattern(null);
+                    mChannel.enableLights(false);
+                    mChannel.setSound(null, null);
+                    notificationManager.createNotificationChannel(mChannel);
+                }
+                Notification notification = new NotificationCompat.Builder(this, MSG_NOTIFICATION_CHANNEL_ID)
+                    .setSmallIcon(R.drawable.message)
+                    .setContentTitle(getString(R.string.private_message_notification, senderName))
+                    .setContentText(getString(R.string.private_message_notification_hint))
+                    .setContentIntent(PendingIntent.getActivity(this, textmessage.nFromUserID, action.putExtra(TextMessageActivity.EXTRA_USERID, textmessage.nFromUserID), PendingIntent.FLAG_IMMUTABLE))
+                    .setAutoCancel(true)
+                    .build();
+                notificationManager.notify(MESSAGE_NOTIFICATION_TAG, textmessage.nFromUserID, notification);
+                break;
                 
-            Intent action = new Intent(this, TextMessageActivity.class);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                NotificationChannel mChannel = new NotificationChannel(MSG_NOTIFICATION_CHANNEL_ID, "Teamtalk incoming message", NotificationManager.IMPORTANCE_HIGH);
-                mChannel.enableVibration(false);
-                mChannel.setVibrationPattern(null);
-                mChannel.enableLights(false);
-                mChannel.setSound(null, null);
-                notificationManager.createNotificationChannel(mChannel);
-            }
-            Notification notification = new NotificationCompat.Builder(this, MSG_NOTIFICATION_CHANNEL_ID)
-                .setSmallIcon(R.drawable.message)
-                .setContentTitle(getString(R.string.private_message_notification, senderName))
-                .setContentText(getString(R.string.private_message_notification_hint))
-                .setContentIntent(PendingIntent.getActivity(this, textmessage.nFromUserID, action.putExtra(TextMessageActivity.EXTRA_USERID, textmessage.nFromUserID), PendingIntent.FLAG_IMMUTABLE))
-                .setAutoCancel(true)
-                .build();
-            notificationManager.notify(MESSAGE_NOTIFICATION_TAG, textmessage.nFromUserID, notification);
-            break;
-
-        case TextMsgType.MSGTYPE_CUSTOM:
-            // Logika typing indicator tetap jalan normal karena kode avatar di atas sudah 'return'
-            if (textmessage.szMessage.startsWith("typing\r\n")) {
-                boolean isTyping = textmessage.szMessage.endsWith("1");
-                if (isTyping) {
-                    if (sounds.get(SOUND_TYPING) != 0)
+            case TextMsgType.MSGTYPE_CUSTOM:
+                if (textmessage.szMessage.startsWith("typing\r\n")) {
+                    boolean isTyping = textmessage.szMessage.endsWith("1");
+                    if (isTyping && sounds.get(SOUND_TYPING) != 0) 
                         audioIcons.play(sounds.get(SOUND_TYPING), 1.0f, 1.0f, 0, 0, 1.0f);
-
                     if (ttsWrapper != null && prefs.get("typing_checkbox", false)) {
                         sender = getService().getUsers().get(textmessage.nFromUserID);
                         name = Utils.getDisplayName(getBaseContext(), sender);
                         ttsWrapper.speak(getString(R.string.text_tts_user_typing, name));
                     }
                 }
-            }
-            break;
+                break;
         }
     }
 // batas akhir kirim foto========
