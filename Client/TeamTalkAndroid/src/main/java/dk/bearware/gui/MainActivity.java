@@ -95,6 +95,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Vector;
 import java.util.List;
+//import baru
+import android.graphics.Bitmap;
+import android.graphics.ThumbnailUtils;
+import android.provider.MediaStore;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import android.util.Base64;
 
 import dk.bearware.Channel;
 import dk.bearware.ChannelType;
@@ -1767,6 +1774,47 @@ class ChannelListAdapter extends BaseAdapter {
         }
         // ======================================
     }
+    
+// ======= METHOD BARU UNTUK AVATAR (TEMPEL DI SINI) =======
+    private void openGalleryForAvatar() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("image/*");
+        startActivityForResult(intent, REQUEST_AVATAR_PICK);
+    }
+
+    private void processAndSendAvatar(Uri imageUri) {
+        try {
+            // 1. Ambil & Kompres Gambar
+            Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+            Bitmap resized = ThumbnailUtils.extractThumbnail(bitmap, 150, 150);
+            
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            resized.compress(Bitmap.CompressFormat.JPEG, 60, baos);
+            byte[] imageBytes = baos.toByteArray();
+            
+            // 2. Konversi Base64
+            String base64Image = Base64.encodeToString(imageBytes, Base64.NO_WRAP);
+            
+            // 3. Simpan Lokal & Kirim via TeamTalk
+            int myId = getClient().getMyUserID();
+            AvatarHelper.saveAvatarToLocal(this, myId, resized);
+            
+            String payload = "[AVT]" + myId + ":" + base64Image;
+            TextMessage msg = new TextMessage();
+            msg.nMsgType = TextMsgType.MSGTYPE_CUSTOM; 
+            msg.szMessage = payload;
+            getClient().doTextMessage(msg);
+            
+            Toast.makeText(this, "Foto profil diperbarui!", Toast.LENGTH_SHORT).show();
+            
+        } catch (IOException e) {
+            Toast.makeText(this, "Gagal proses foto", Toast.LENGTH_LONG).show();
+            e.printStackTrace();
+        }
+    }
+    // =======================================================
+    
+    
     //=======BATAS BAGIAN 3==
     
 ///BAGIIAN 4========
