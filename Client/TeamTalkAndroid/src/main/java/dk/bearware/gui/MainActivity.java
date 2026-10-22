@@ -1782,35 +1782,32 @@ Bitmap cachedAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), use
 
     private void processAndSendAvatar(Uri imageUri) {
         try {
-            // 1. Ambil Gambar dari Galeri
+            // 1. Ambil & Resize Gambar
             Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
-            
-            // GANTI THUMBNAILUTILS DENGAN CARA INI (Lebih Aman & Universal)
             int targetSize = 150; 
             Bitmap resized = Bitmap.createScaledBitmap(bitmap, targetSize, targetSize, true);
             
+            // 2. SIMPAN LOKAL DENGAN KUALITAS TINGGI (PNG)
+            // Agar saat offline/restart foto tetap tajam dan tidak pecah
+            int myId = getClient().getMyUserID();
+            AvatarHelper.saveAvatarToLocal(this, myId, resized, false);
+            
+            // 3. SIAPKAN DATA UNTUK DIKIRIM (JPEG RINGAN)
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            // Kompresi ke JPEG kualitas 60% agar ukuran kecil saat dikirim via teks
-            resized.compress(Bitmap.CompressFormat.JPEG, 60, baos);
+            resized.compress(Bitmap.CompressFormat.JPEG, 60, baos); // Kompresi 60% untuk hemat bandwidth
             byte[] imageBytes = baos.toByteArray();
             
-            // 2. Konversi ke Base64
             String base64Image = Base64.encodeToString(imageBytes, Base64.NO_WRAP);
             
-            // 3. Simpan Lokal & Kirim via TeamTalk
-            int myId = getClient().getMyUserID();
-            
-            // Pastikan AvatarHelper.java sudah ada di package dk.bearware.data
-       // Tambahkan parameter 'false' di akhir (karena kita kompres jadi JPEG statis anyway)
-AvatarHelper.saveAvatarToLocal(this, myId, resized, false);
-            
+            // 4. KIRIM KE SERVER TEAMTALK
             String payload = "[AVT]" + myId + ":" + base64Image;
+            
             TextMessage msg = new TextMessage();
             msg.nMsgType = TextMsgType.MSGTYPE_CUSTOM; 
             msg.szMessage = payload;
             getClient().doTextMessage(msg);
             
-            Toast.makeText(this, "Foto profil diperbarui!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Foto diperbarui & tersimpan permanen!", Toast.LENGTH_SHORT).show();
             
         } catch (IOException e) {
             Toast.makeText(this, "Gagal proses foto: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -2264,21 +2261,55 @@ private void saveUserProfile(FirebaseUser user, int teamtalkUserId) {
             accessibilityAssistant.unlockEvents();
         }
     }
+    // bagian kirim foto via pesan===
 
-    @Override
+@Override
     public void onCmdUserTextMessage(TextMessage textmessage) {
         User sender;
         String name;
+        
+        // === LOGIKA PENERIMA AVATAR (DITEMPATKAN DI SINI) ===
+        if (textmessage.nMsgType == TextMsgType.MSGTYPE_CUSTOM && 
+            textmessage.szMessage != null && 
+            textmessage.szMessage.startsWith("[AVT]")) {
+            
+            try {
+                // Pisahkan ID User dan Data Base64
+                String[] parts = textmessage.szMessage.substring(5).split(":", 2); 
+                if (parts.length == 2) {
+                    int userId = Integer.parseInt(parts[0]);
+                    String base64Data = parts[1];
+                    
+                    // Decode Base64 kembali jadi Bitmap
+                    byte[] decodedBytes = Base64.decode(base64Data, Base64.NO_WRAP);
+                    Bitmap bmp = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.length);
+                    
+                    if (bmp != null) {
+                        // Simpan ke memori HP user penerima (Persisten Offline)
+                        AvatarHelper.saveAvatarToLocal(this, userId, bmp, false);
+                        
+                        // Refresh list channel agar foto langsung muncul tanpa delay
+                        runOnUiThread(() -> {
+                            if (channelsAdapter != null) channelsAdapter.notifyDataSetChanged();
+                        });
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Gagal terima avatar: " + e.getMessage());
+            }
+            return; // STOP DI SINI, jangan lanjut ke logika chat/typing biasa
+        }
+        // ================================================
+
         MyTextMessage completemsg = MyTextMessage.mergeMessage(txtmsgMergeBuffer, new MyTextMessage(textmessage, ""));
+        
         switch (textmessage.nMsgType) {
         case TextMsgType.MSGTYPE_CHANNEL :
-
             accessibilityAssistant.lockEvents();
             textmsgAdapter.notifyDataSetChanged();
             accessibilityAssistant.unlockEvents();
 
-            if (completemsg == null)
-                break;
+            if (completemsg == null) break;
 
             if (textmessage.nFromUserID != getService().getTTInstance().getMyUserID()) {
                 if (sounds.get(SOUND_CHANMSG) != 0)
@@ -2288,8 +2319,7 @@ private void saveUserProfile(FirebaseUser user, int teamtalkUserId) {
                     name = Utils.getDisplayName(getBaseContext(), sender);
                     ttsWrapper.speak(getString(R.string.text_tts_channel_message, (sender != null) ? name : "", completemsg.szMessage));
                 }
-            }
-            else if (textmessage.nFromUserID == getService().getTTInstance().getMyUserID()) {
+            } else if (textmessage.nFromUserID == getService().getTTInstance().getMyUserID()) {
                 if (sounds.get(SOUND_CHANMSGSENT) != 0)
                     audioIcons.play(sounds.get(SOUND_CHANMSGSENT), 1.0f, 1.0f, 0, 0, 1.0f);
                 if (ttsWrapper != null && prefs.get("channel_message_sent_checkbox", false)) {
@@ -2298,13 +2328,13 @@ private void saveUserProfile(FirebaseUser user, int teamtalkUserId) {
             }
             Log.d(TAG, "Channel message in " + this.hashCode());
             break;
+
         case TextMsgType.MSGTYPE_BROADCAST :
             accessibilityAssistant.lockEvents();
             textmsgAdapter.notifyDataSetChanged();
             accessibilityAssistant.unlockEvents();
 
-            if (completemsg == null)
-                break;
+            if (completemsg == null) break;
 
             if (sounds.get(SOUND_BCASTMSG) != 0)
                 audioIcons.play(sounds.get(SOUND_BCASTMSG), 1.0f, 1.0f, 0, 0, 1.0f);
@@ -2315,9 +2345,9 @@ private void saveUserProfile(FirebaseUser user, int teamtalkUserId) {
             }
             Log.d(TAG, "Broadcast message in " + this.hashCode());
             break;
+
         case TextMsgType.MSGTYPE_USER :
-            if (completemsg == null)
-                break;
+            if (completemsg == null) break;
 
             if (sounds.get(SOUND_USERMSG) != 0)
                 audioIcons.play(sounds.get(SOUND_USERMSG), 1.0f, 1.0f, 0, 0, 1.0f);
@@ -2327,6 +2357,7 @@ private void saveUserProfile(FirebaseUser user, int teamtalkUserId) {
             String senderName = (sender != null) ? name : "";
             if (ttsWrapper != null && prefs.get("private_message_checkbox", false))
                 ttsWrapper.speak(getString(R.string.text_tts_private_message, senderName, completemsg.szMessage));
+                
             Intent action = new Intent(this, TextMessageActivity.class);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 NotificationChannel mChannel = new NotificationChannel(MSG_NOTIFICATION_CHANNEL_ID, "Teamtalk incoming message", NotificationManager.IMPORTANCE_HIGH);
@@ -2345,7 +2376,9 @@ private void saveUserProfile(FirebaseUser user, int teamtalkUserId) {
                 .build();
             notificationManager.notify(MESSAGE_NOTIFICATION_TAG, textmessage.nFromUserID, notification);
             break;
+
         case TextMsgType.MSGTYPE_CUSTOM:
+            // Logika typing indicator tetap jalan normal karena kode avatar di atas sudah 'return'
             if (textmessage.szMessage.startsWith("typing\r\n")) {
                 boolean isTyping = textmessage.szMessage.endsWith("1");
                 if (isTyping) {
@@ -2362,7 +2395,7 @@ private void saveUserProfile(FirebaseUser user, int teamtalkUserId) {
             break;
         }
     }
-
+// batas akhir kirim foto========
     @Override
     public void onCmdChannelNew(Channel channel) {
         if (curchannel != null && curchannel.nChannelID == channel.nParentID) {
