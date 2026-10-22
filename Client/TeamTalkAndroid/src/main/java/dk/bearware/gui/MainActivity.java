@@ -140,6 +140,7 @@ import dk.bearware.data.Preferences;
 import dk.bearware.data.ServerEntry;
 import dk.bearware.data.TTSWrapper;
 import dk.bearware.data.TextMessageAdapter;
+import dk.bearware.data.AvatarHelper;
 import dk.bearware.events.ClientEventListener;
 import dk.bearware.utils.PrefsHelper;
 
