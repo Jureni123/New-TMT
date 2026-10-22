@@ -103,7 +103,7 @@ import android.graphics.ImageDecoder; // Wajib untuk Android 10+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import android.util.Base64;
-
+import android.graphics.ImageDecoder;
 
 // ... import lainnya ...
 import dk.bearware.Channel;
@@ -1823,12 +1823,14 @@ Bitmap cachedAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), use
     private void processAndSendAvatar(Uri imageUri) {
         try {
             Bitmap bitmap;
-            // Ambil gambar dengan cara aman untuk semua versi Android
+            
+            // Gunakan ImageDecoder (Android 10+) atau fallback ke MediaStore (Android 9 ke bawah)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 ImageDecoder.Source source = ImageDecoder.createSource(getContentResolver(), imageUri);
                 bitmap = ImageDecoder.decodeBitmap(source);
             } else {
-                bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+                // Fallback aman untuk Android lama tanpa perlu import MediaStore.Images
+                bitmap = android.provider.MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
             }
 
             if (bitmap == null) throw new IOException("Gagal memuat gambar");
