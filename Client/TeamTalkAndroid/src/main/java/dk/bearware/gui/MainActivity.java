@@ -140,7 +140,6 @@ import dk.bearware.data.Preferences;
 import dk.bearware.data.ServerEntry;
 import dk.bearware.data.TTSWrapper;
 import dk.bearware.data.TextMessageAdapter;
-import dk.bearware.data.AvatarHelper;
 import dk.bearware.events.ClientEventListener;
 import dk.bearware.utils.PrefsHelper;
 
@@ -1289,9 +1288,9 @@ class ChannelListAdapter extends BaseAdapter {
                 nickname.setContentDescription(desc.trim());
                 status.setContentDescription(away ? getString(R.string.user_state_away) + " " + user.szStatusMsg : null);
 // === LOGIKA FOTO PROFIL BARU (HANYA PAKAI CACHE LOKAL/TEAMTALK) ===
-                // Cek apakah ada foto custom di cache lokal (dari AvatarHelper)
-                Bitmap cachedAvatar = AvatarHelper.getAvatarFromLocal(context, user.nUserID);
                 
+// Gunakan inflater.getContext() karena kita ada di dalam Adapter
+Bitmap cachedAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), user.nUserID);
                 if (cachedAvatar != null) {
                     // Jika ada foto custom, tampilkan foto tersebut
                     usericon.setImageBitmap(cachedAvatar);
