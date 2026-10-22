@@ -1287,8 +1287,7 @@ class ChannelListAdapter extends BaseAdapter {
                               (isAdmin ? getString(R.string.user_state_admin) : "");
                 nickname.setContentDescription(desc.trim());
                 status.setContentDescription(away ? getString(R.string.user_state_away) + " " + user.szStatusMsg : null);
-
-                // === LOGIKA FOTO PROFIL YANG SUDAH DIBERSIHKAN ===
+// === LOGIKA FOTO PROFIL YANG SUDAH DIBERSIHKAN ===
                 boolean isMyself = (user.nUserID == getService().getTTInstance().getMyUserID());
                 if (isMyself) {
                     FirebaseUser fbUser = FirebaseAuth.getInstance().getCurrentUser();
@@ -1300,6 +1299,7 @@ class ChannelListAdapter extends BaseAdapter {
                     profileManager.loadAvatarByName(user.szNickname, usericon, icon_resource);
                    // profileManager.loadAvatar(user.szNickname, usericon, icon_resource);
                 }
+                // ================================================
                 // ================================================
 
                 usericon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
