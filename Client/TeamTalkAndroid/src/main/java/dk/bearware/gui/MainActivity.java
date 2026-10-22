@@ -1793,11 +1793,23 @@ Bitmap cachedAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), use
     }
 
     // Method pemroses gambar setelah dipilih dari galeri
-private void processAndSendAvatar(Uri imageUri) {
+// Method pemroses gambar setelah dipilih dari galeri
+    private void processAndSendAvatar(Uri imageUri) {
         try {
             int myId = getClient().getMyUserID();
-            if (myId <= 0 || !getClient().isConnected()) {
+            
+            // Validasi ID User (jika <= 0 berarti belum login/terhubung)
+            if (myId <= 0) {
                 Toast.makeText(this, "Harus terhubung ke server!", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Cek status koneksi menggunakan Flags (Cara resmi TeamTalk 5)
+            int flags = getClient().getFlags();
+            boolean isOnline = (flags & dk.bearware.ClientFlag.CLIENT_AUTHORIZED) != 0;
+            
+            if (!isOnline) {
+                Toast.makeText(this, "Status belum online!", Toast.LENGTH_SHORT).show();
                 return;
             }
 
@@ -1808,6 +1820,7 @@ private void processAndSendAvatar(Uri imageUri) {
             }
 
             Bitmap bitmap;
+            // Gunakan ImageDecoder (Android 10+) atau fallback ke MediaStore (Android 9 ke bawah)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 ImageDecoder.Source source = ImageDecoder.createSource(getContentResolver(), imageUri);
                 bitmap = ImageDecoder.decodeBitmap(source);
@@ -1817,13 +1830,18 @@ private void processAndSendAvatar(Uri imageUri) {
 
             if (bitmap == null) throw new IOException("Gagal memuat gambar");
 
+            // Resize ke 150x150 agar muat di protokol TeamTalk
             Bitmap resized = Bitmap.createScaledBitmap(bitmap, 150, 150, true);
+            
+            // Simpan ke HP sendiri dulu (agar langsung tampil di list)
             AvatarHelper.saveAvatarToLocal(this, myId, resized, false);
             
+            // Kompresi jadi kecil untuk dikirim via jaringan
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             resized.compress(Bitmap.CompressFormat.JPEG, 60, baos);
             byte[] imageBytes = baos.toByteArray();
             
+            // Validasi ukuran payload (Max ~7KB aman untuk TT Custom Message)
             if (imageBytes.length > 7000) {
                 Toast.makeText(this, "Foto terlalu besar", Toast.LENGTH_LONG).show();
                 return;
@@ -1831,7 +1849,7 @@ private void processAndSendAvatar(Uri imageUri) {
             
             String payload = "[AVT]" + myId + ":" + Base64.encodeToString(imageBytes, Base64.NO_WRAP);
             
-            // INI KUNCINYA: Beri alamat channel yang jelas
+            // INI KUNCINYA: Beri alamat channel yang jelas agar user lain bisa terima
             TextMessage msg = new TextMessage();
             msg.nMsgType = TextMsgType.MSGTYPE_CHANNEL; 
             msg.nChannelID = currentChanId;             
@@ -1840,9 +1858,13 @@ private void processAndSendAvatar(Uri imageUri) {
             int cmdId = getClient().doTextMessage(msg);
             if (cmdId > 0) {
                 Toast.makeText(this, "Foto dikirim ke channel!", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Gagal kirim (CMD Error)", Toast.LENGTH_LONG).show();
             }
+            
         } catch (Exception e) {
             Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            e.printStackTrace();
         }
     }
     // =======================================================
