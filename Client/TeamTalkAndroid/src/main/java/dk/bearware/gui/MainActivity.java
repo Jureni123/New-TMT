@@ -97,7 +97,7 @@ import java.util.Vector;
 import java.util.List;
 //import baru
 import android.graphics.Bitmap;
-import android.graphics.ThumbnailUtils;
+//import android.graphics.ThumbnailUtils;
 import android.provider.MediaStore;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -1784,19 +1784,25 @@ class ChannelListAdapter extends BaseAdapter {
 
     private void processAndSendAvatar(Uri imageUri) {
         try {
-            // 1. Ambil & Kompres Gambar
+            // 1. Ambil Gambar dari Galeri
             Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
-            Bitmap resized = ThumbnailUtils.extractThumbnail(bitmap, 150, 150);
+            
+            // GANTI THUMBNAILUTILS DENGAN CARA INI (Lebih Aman & Universal)
+            int targetSize = 150; 
+            Bitmap resized = Bitmap.createScaledBitmap(bitmap, targetSize, targetSize, true);
             
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            // Kompresi ke JPEG kualitas 60% agar ukuran kecil saat dikirim via teks
             resized.compress(Bitmap.CompressFormat.JPEG, 60, baos);
             byte[] imageBytes = baos.toByteArray();
             
-            // 2. Konversi Base64
+            // 2. Konversi ke Base64
             String base64Image = Base64.encodeToString(imageBytes, Base64.NO_WRAP);
             
             // 3. Simpan Lokal & Kirim via TeamTalk
             int myId = getClient().getMyUserID();
+            
+            // Pastikan AvatarHelper.java sudah ada di package dk.bearware.data
             AvatarHelper.saveAvatarToLocal(this, myId, resized);
             
             String payload = "[AVT]" + myId + ":" + base64Image;
@@ -1808,7 +1814,7 @@ class ChannelListAdapter extends BaseAdapter {
             Toast.makeText(this, "Foto profil diperbarui!", Toast.LENGTH_SHORT).show();
             
         } catch (IOException e) {
-            Toast.makeText(this, "Gagal proses foto", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Gagal proses foto: " + e.getMessage(), Toast.LENGTH_LONG).show();
             e.printStackTrace();
         }
     }
