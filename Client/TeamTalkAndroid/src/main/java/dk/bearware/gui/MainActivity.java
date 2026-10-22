@@ -142,7 +142,7 @@ import dk.bearware.data.TTSWrapper;
 import dk.bearware.data.TextMessageAdapter;
 import dk.bearware.events.ClientEventListener;
 import dk.bearware.utils.PrefsHelper;
-
+import dk.bearware.data.AvatarHelper;
 public class MainActivity extends AppCompatActivity
         implements TeamTalkConnectionListener, OnMenuItemClickListener, SensorEventListener,
         OnVoiceTransmissionToggleListener, ClientEventListener.OnConnectionLostListener,
@@ -1801,7 +1801,8 @@ Bitmap cachedAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), use
             int myId = getClient().getMyUserID();
             
             // Pastikan AvatarHelper.java sudah ada di package dk.bearware.data
-            AvatarHelper.saveAvatarToLocal(this, myId, resized);
+       // Tambahkan parameter 'false' di akhir (karena kita kompres jadi JPEG statis anyway)
+AvatarHelper.saveAvatarToLocal(this, myId, resized, false);
             
             String payload = "[AVT]" + myId + ":" + base64Image;
             TextMessage msg = new TextMessage();
