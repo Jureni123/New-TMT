@@ -265,7 +265,8 @@ private UserProfileManager profileManager;
     //    channelsAdapter = new ChannelListAdapter(this.getBaseContext());
     
 // Kirim profileManager ke adapter agar bisa load foto
-channelsAdapter = new ChannelListAdapter(this.getBaseContext(), profileManager);
+// ✅ BENAR (Sesuai constructor Single Channel baru)
+channelsAdapter = new ChannelListAdapter(this.getBaseContext());
         filesAdapter = new FileListAdapter(this, this, accessibilityAssistant);
         textmsgAdapter = new TextMessageAdapter(this, accessibilityAssistant);
         mediaAdapter = new MediaAdapter(this.getBaseContext());
