@@ -1793,82 +1793,59 @@ Bitmap cachedAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), use
     }
 
     // Method pemroses gambar setelah dipilih dari galeri
-// Method pemroses gambar setelah dipilih dari galeri
-    private void processAndSendAvatar(Uri imageUri) {
-        try {
-            int myId = getClient().getMyUserID();
-            
-            // Validasi ID User (jika <= 0 berarti belum login/terhubung)
-            if (myId <= 0) {
-                Toast.makeText(this, "Harus terhubung ke server!", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            // Cek status koneksi menggunakan Flags (Cara resmi TeamTalk 5)
-            int flags = getClient().getFlags();
-            boolean isOnline = (flags & dk.bearware.ClientFlag.CLIENT_AUTHORIZED) != 0;
-            
-            if (!isOnline) {
-                Toast.makeText(this, "Status belum online!", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            int currentChanId = getClient().getMyChannelID();
-            if (currentChanId <= 0) {
-                Toast.makeText(this, "Harus gabung channel dulu!", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            Bitmap bitmap;
-            // Gunakan ImageDecoder (Android 10+) atau fallback ke MediaStore (Android 9 ke bawah)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                ImageDecoder.Source source = ImageDecoder.createSource(getContentResolver(), imageUri);
-                bitmap = ImageDecoder.decodeBitmap(source);
-            } else {
-                bitmap = android.provider.MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
-            }
-
-            if (bitmap == null) throw new IOException("Gagal memuat gambar");
-
-            // Resize ke 150x150 agar muat di protokol TeamTalk
-            Bitmap resized = Bitmap.createScaledBitmap(bitmap, 150, 150, true);
-            
-            // Simpan ke HP sendiri dulu (agar langsung tampil di list)
-            AvatarHelper.saveAvatarToLocal(this, myId, resized, false);
-            
-            // Kompresi jadi kecil untuk dikirim via jaringan
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            resized.compress(Bitmap.CompressFormat.JPEG, 60, baos);
-            byte[] imageBytes = baos.toByteArray();
-            
-            // Validasi ukuran payload (Max ~7KB aman untuk TT Custom Message)
-            if (imageBytes.length > 7000) {
-                Toast.makeText(this, "Foto terlalu besar", Toast.LENGTH_LONG).show();
-                return;
-            }
-            
-            String payload = "[AVT]" + myId + ":" + Base64.encodeToString(imageBytes, Base64.NO_WRAP);
-            
-            // INI KUNCINYA: Beri alamat channel yang jelas agar user lain bisa terima
-            TextMessage msg = new TextMessage();
-            msg.nMsgType = TextMsgType.MSGTYPE_CHANNEL; 
-            msg.nChannelID = currentChanId;             
-            msg.szMessage = payload;
-            
-            int cmdId = getClient().doTextMessage(msg);
-            if (cmdId > 0) {
-                Toast.makeText(this, "Foto dikirim ke channel!", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, "Gagal kirim (CMD Error)", Toast.LENGTH_LONG).show();
-            }
-            
-        } catch (Exception e) {
-            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
-            e.printStackTrace();
+// ======= METHOD BARU UNTUK AVATAR (JALUR STATUS REAL-TIME VIA TOMBOL FOTO) =======
+private void processAndSendAvatar(Uri imageUri) {
+    try {
+        int myId = getClient().getMyUserID();
+        if (myId <= 0) {
+            Toast.makeText(this, "Harus terhubung ke server!", Toast.LENGTH_SHORT).show();
+            return;
         }
+
+        // 1. Load & Resize Gambar
+        Bitmap bitmap;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ImageDecoder.Source source = ImageDecoder.createSource(getContentResolver(), imageUri);
+            bitmap = ImageDecoder.decodeBitmap(source);
+        } else {
+            bitmap = android.provider.MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+        }
+        
+        if (bitmap == null) throw new IOException("Gagal memuat gambar");
+        Bitmap resized = Bitmap.createScaledBitmap(bitmap, 150, 150, true);
+
+        // 2. Simpan Permanen via AvatarHelper (Folder: user_avatars/[UID].png)
+        AvatarHelper.saveAvatarToLocal(this, myId, resized, false);
+        
+        // 3. KIRIM SINYAL KE SERVER SECARA REAL-TIME (Tanpa Login Ulang!)
+        User myself = getService().getUsers().get(myId);
+        if (myself != null) {
+            // Ambil mode status saat ini (gender, away, dll) agar tidak hilang
+            int currentMode = myself.nStatusMode;
+            
+            // Tambahkan bit HAS_AVATAR (1 << 16) ke status mode
+            final int STATUSMODE_HAS_AVATAR = 1 << 16; 
+            int newMode = currentMode | STATUSMODE_HAS_AVATAR;
+            
+            // Kirim update status -> Server broadcast ke semua user dalam <50ms
+            int cmdId = getClient().doChangeStatus(newMode, myself.szStatusMsg);
+            
+            if (cmdId > 0) {
+                Log.d(TAG, "✅ Sinyal avatar terkirim real-time via doChangeStatus");
+            }
+        }
+
+        // 4. Refresh UI Lokal Instan
+        if (channelsAdapter != null) channelsAdapter.notifyDataSetChanged();
+        
+        Toast.makeText(this, "Foto tersimpan & sinyal dikirim!", Toast.LENGTH_SHORT).show();
+
+    } catch (Exception e) {
+        Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        e.printStackTrace();
     }
-    // =======================================================
-    
+}
+// ==================================================================================
     
     //=======BATAS BAGIAN 3==
     
