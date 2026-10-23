@@ -1,56 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="horizontal" >
-    
+    android:layout_height="wrap_content"
+    android:background="#1565C0" 
+    android:paddingTop="24dp"
+    android:paddingBottom="24dp">
+
+    <!-- Logo Channel (ID ASLI DIPERTAHANKAN) -->
     <ImageView
         android:id="@+id/channelicon"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:src="@drawable/back_orange"
-        android:layout_alignParentStart="true"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="12dp"
+        android:src="@drawable/back_orange" 
         android:importantForAccessibility="no" />
-    
-    <LinearLayout
+
+    <!-- Judul Utama (ID ASLI DIPERTAHANKAN) -->
+    <TextView
+        android:id="@+id/parentname" 
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_toEndOf="@id/channelicon"
-        android:paddingStart="5dp"
-        android:paddingEnd="5dp"
-        android:orientation="vertical" >
+        android:layout_below="@id/channelicon"
+        android:layout_centerHorizontal="true"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF"
+        android:gravity="center" />
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal" >
+    <!-- Topic (ID ASLI DIPERTAHANKAN) -->
+    <TextView
+        android:id="@+id/chantopic"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/parentname"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="4dp"
+        android:text=""
+        android:textSize="14sp"
+        android:textColor="#B3FFFFFF" 
+        android:gravity="center" />
 
-            <TextView
-                android:id="@+id/parentname"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textSize="16sp" 
-                android:singleLine="true"
-                android:text=".."
-                tools:ignore="HardcodedText" />
-
-            <TextView
-                android:id="@+id/population"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingStart="5dp"
-                android:paddingEnd="5dp"
-                android:textSize="16sp"
-                android:singleLine="true" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/chantopic"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:singleLine="true"
-            android:textSize="14sp" />
-    </LinearLayout>
+    <!-- Population (ID ASLI TETAP ADA, HANYA DIGONE AGAR TIDAK ERROR DI JAVA) -->
+    <TextView
+        android:id="@+id/population"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
 
 </RelativeLayout>
