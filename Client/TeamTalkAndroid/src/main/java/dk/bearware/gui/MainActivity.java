@@ -1272,10 +1272,10 @@ public class MainActivity extends AppCompatActivity
             bitmap = android.provider.MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
         }
         
-        // Resize 64x64 + Quality 50% (Lebih ringan agar tidak sering ditolak)
-        Bitmap optimized = Bitmap.createScaledBitmap(bitmap, 64, 64, true);
+        // Resize 48x48 + Quality 40% (Sangat ringan, pasti lolos batas 180 byte)
+        Bitmap optimized = Bitmap.createScaledBitmap(bitmap, 48, 48, true);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        optimized.compress(Bitmap.CompressFormat.JPEG, 50, baos);
+        optimized.compress(Bitmap.CompressFormat.JPEG, 40, baos);
         byte[] bytes = baos.toByteArray();
         
         // Safety check: max 180 byte data mentah
