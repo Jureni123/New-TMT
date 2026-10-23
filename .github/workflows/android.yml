@@ -26,12 +26,24 @@ jobs:
           echo "full_sha=${FULL_SHA}" >> $GITHUB_OUTPUT
           echo "commit_msg=${COMMIT_MSG}" >> $GITHUB_OUTPUT
       
-      # 2. Setup Environment
-      - name: Set up Java 17
+      # 2. Setup Environment + GRADLE CACHE (FIX MACET DOWNLOAD)
+      - name: Set up Java 17 with Gradle Cache
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: gradle  # <--- INI KUNCI! Otomatis cache ~/.gradle/caches & wrapper
+      
+      - name: Extra Gradle Cache Fallback
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            Client/TeamTalkAndroid/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('Client/TeamTalkAndroid/**/*.gradle*', 'Client/TeamTalkAndroid/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
       
       - name: Set up Android NDK r29
         uses: nttld/setup-ndk@v1
@@ -66,7 +78,7 @@ jobs:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
           JAVA_HOME: ${{ env.JAVA_HOME }}
       
-      # 4. Generate Keystore (Sesuai Kode Kamu)
+      # 4. Generate Keystore
       - name: Setup Keystore
         working-directory: ${{github.workspace}}/Client/TeamTalkAndroid
         env:
@@ -118,25 +130,23 @@ jobs:
             -PCOMMIT_FULL=${{ steps.commit_info.outputs.full_sha }} \
             -PCOMMIT_MSG="${{ steps.commit_info.outputs.commit_msg }}"
       
-      # 7. Rename APK Agar Unik & Mudah Dilacak
+      # 7. Rename APK Agar Unik
       - name: Rename APK with Unique Commit ID
         run: |
           mkdir -p renamed_apk
           for apk in Client/TeamTalkAndroid/build/outputs/apk/release/*.apk; do
             if [ -f "$apk" ]; then
               BASENAME=$(basename "$apk" .apk)
-              # Format: app-release_[COMMIT-SHA]-PUBLIK.apk
               NEW_NAME="${BASENAME}_${{ steps.commit_info.outputs.short_sha }}-PUBLIK.apk"
               cp "$apk" "renamed_apk/${NEW_NAME}"
               echo "Renamed to: ${NEW_NAME}"
             fi
           done
       
-      # 8. Upload Artifact dengan Nama Dinamis (TIDAK MONOTON)
+      # 8. Upload Artifact
       - name: Upload Unique APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          # Nama artifact sekarang unik setiap build!
           name: OFA-Public-${{ steps.commit_info.outputs.short_sha }}
           path: renamed_apk/*.apk
           if-no-files-found: error
