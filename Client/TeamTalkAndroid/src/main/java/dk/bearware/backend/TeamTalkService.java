@@ -763,14 +763,22 @@ public class TeamTalkService extends Service
         if (prefs.getBoolean(Preferences.PREF_GENERAL_GENDER, false))
             statusmode |= TeamTalkConstants.STATUSMODE_FEMALE;
 
-        // === PENYUNTIKAN LOGIKA AVATAR VIA JALUR STATUS ===
+        // === PENYUNTIKAN LOGIKA AVATAR VIA JALUR STATUS (PATH DIKOREKSI SESUAI AvatarHelper) ===
         try {
-            // Cek apakah ada file avatar lokal tersimpan untuk user ID ini
-            // Format nama file disesuaikan dengan AvatarHelper.saveAvatarToLocal
-            File avatarFile = new File(getBaseContext().getFilesDir(), "avatar_" + my_userid + ".png");
+            // Path disesuaikan dengan struktur folder 'user_avatars' di AvatarHelper.java
+            File avatarDir = new File(getBaseContext().getFilesDir(), "user_avatars");
+            File avatarFile = new File(avatarDir, my_userid + ".png");
+            
+            // Fallback ke .jpg jika .png belum ada (sesuai logika fallback di AvatarHelper)
+            if (!avatarFile.exists()) {
+                avatarFile = new File(avatarDir, my_userid + ".jpg");
+            }
+
             if (avatarFile.exists() && avatarFile.length() > 0) {
                 statusmode |= STATUSMODE_HAS_AVATAR;
                 Log.d(TAG, "✅ Avatar lokal terdeteksi UID " + my_userid + ", sinyal disertakan dalam status login.");
+            } else {
+                Log.d(TAG, "ℹ️ Tidak ada avatar lokal untuk UID " + my_userid + ", hanya mengirim status gender.");
             }
         } catch (Exception e) {
             Log.e(TAG, "⚠️ Gagal cek avatar saat login: " + e.getMessage());
@@ -833,7 +841,7 @@ public class TeamTalkService extends Service
         // Deteksi apakah user lain mengirim sinyal avatar via status mode
         boolean hasAvatarSignal = (user.nStatusMode & STATUSMODE_HAS_AVATAR) != 0;
         if (hasAvatarSignal && user.nUserID != ttclient.getMyUserID()) {
-            Log.d(TAG, "📡 User " + user.szNickname + " (UID:" + user.nUserID + ") mengirim sinyal avatar via status update.");
+            Log.d(TAG, " User " + user.szNickname + " (UID:" + user.nUserID + ") mengirim sinyal avatar via status update.");
             // Catatan: Pengiriman data gambar aktual tetap dilakukan via mekanisme terpisah (misal handshake privat)
             // karena protokol status hanya membawa bitmask, bukan payload biner.
             // Namun, sinyal ini sudah cukup untuk memicu UI refresh jika file lokal tersedia.
