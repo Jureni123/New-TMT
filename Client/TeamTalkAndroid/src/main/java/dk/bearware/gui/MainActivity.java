@@ -1259,50 +1259,51 @@ public class MainActivity extends AppCompatActivity
     }
 
     // METHOD PENGIRIM AVATAR VIA STATUS (JERNIH 96x96)
-    private void processAndSendAvatar(Uri imageUri) {
-        try {
-            int myId = getClient().getMyUserID();
-            if (myId <= 0) return;
-
-            Bitmap bitmap;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(getContentResolver(), imageUri));
-            } else {
-                bitmap = android.provider.MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
-            }
-            
-            // Resize 96x96 + Quality 70% (Jernih tapi aman untuk szStatusMsg)
-            Bitmap optimized = Bitmap.createScaledBitmap(bitmap, 96, 96, true);
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            optimized.compress(Bitmap.CompressFormat.JPEG, 70, baos);
-            byte[] bytes = baos.toByteArray();
-            
-            // Safety check: max 180 byte data mentah agar tidak ditolak server
-            if (bytes.length > 180) {
-                Toast.makeText(this, "Gambar terlalu detail. Coba foto lain.", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            String base64 = Base64.encodeToString(bytes, Base64.NO_WRAP);
-            
-            // Simpan lokal dulu
-            AvatarHelper.saveAvatarToLocal(this, myId, optimized, false);
-            
-            // Kirim via szStatusMsg dengan prefix AV:
-            User myself = getService().getUsers().get(myId);
-            if (myself != null) {
-                getClient().doChangeStatus(myself.nStatusMode, "AV:" + base64);
-            }
-            
-            Toast.makeText(this, "Foto jernih terkirim!", Toast.LENGTH_SHORT).show();
-            channelsAdapter.notifyDataSetChanged();
-
-        } catch (Exception e) {
-            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
-            e.printStackTrace();
-        }
-    }
     
+    private void processAndSendAvatar(Uri imageUri) {
+    try {
+        int myId = getClient().getMyUserID();
+        if (myId <= 0) return;
+
+        Bitmap bitmap;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(getContentResolver(), imageUri));
+        } else {
+            bitmap = android.provider.MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+        }
+        
+        // Resize 64x64 + Quality 50% (Lebih ringan agar tidak sering ditolak)
+        Bitmap optimized = Bitmap.createScaledBitmap(bitmap, 64, 64, true);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        optimized.compress(Bitmap.CompressFormat.JPEG, 50, baos);
+        byte[] bytes = baos.toByteArray();
+        
+        // Safety check: max 180 byte data mentah
+        if (bytes.length > 180) {
+            Toast.makeText(this, "Gambar masih terlalu besar. Coba foto lain.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String base64 = Base64.encodeToString(bytes, Base64.NO_WRAP);
+        
+        // Simpan lokal dulu
+        AvatarHelper.saveAvatarToLocal(this, myId, optimized, false);
+        
+        // Kirim via szStatusMsg dengan prefix AV:
+        User myself = getService().getUsers().get(myId);
+        if (myself != null) {
+            getClient().doChangeStatus(myself.nStatusMode, "AV:" + base64);
+        }
+        
+        Toast.makeText(this, "Foto berhasil dikirim!", Toast.LENGTH_SHORT).show();
+        channelsAdapter.notifyDataSetChanged();
+
+    } catch (Exception e) {
+        Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        e.printStackTrace();
+    }
+}
+    //============
     private void initializeTeamTalkService(TeamTalkService service) {
         this.users = new HashMap<>(service.getUsers());
         int mychanid = getClient().getMyChannelID();
