@@ -1178,14 +1178,15 @@ private EditText newmsg;
     }
 //=====
 // ====== MODIFIKASI FULL: SINGLE CHANNEL FLAT LIST ADAPTER ======
+// ====== CHANNEL LIST ADAPTER (VERSI SINGLE CHANNEL - FIX BUILD ERROR) ======
 class ChannelListAdapter extends BaseAdapter {
-    // Hanya 2 tipe view: Header Channel & User
     private static final int HEADER_VIEW_TYPE = 0;
     private static final int USER_VIEW_TYPE = 1;
     
     private final LayoutInflater inflater;
     private Vector<User> currentusers = new Vector<>();
 
+    // CONSTRUCTOR ASLI: Hanya butuh Context (Fix Error Baris 76)
     ChannelListAdapter(Context context) {
         inflater = LayoutInflater.from(context);
     }
@@ -1193,8 +1194,6 @@ class ChannelListAdapter extends BaseAdapter {
     @Override 
     public void notifyDataSetChanged() {
         currentusers.clear();
-        
-        // Ambil user HANYA dari channel aktif (curchannel)
         if(curchannel != null) {
             currentusers = Utils.getUsers(curchannel.nChannelID, getService().getUsers());
         }
@@ -1215,14 +1214,13 @@ class ChannelListAdapter extends BaseAdapter {
 
     @Override 
     public int getCount() {
-        // 1 Header + Jumlah User
         return (curchannel != null ? 1 : 0) + currentusers.size(); 
     }
 
     @Override 
     public Object getItem(int position) {
-        if (position == 0 && curchannel != null) return curchannel; // Posisi 0 adalah Header
-        return currentusers.get(position - 1); // Sisanya adalah User
+        if (position == 0 && curchannel != null) return curchannel;
+        return currentusers.get(position - 1);
     }
 
     @Override 
@@ -1241,24 +1239,23 @@ class ChannelListAdapter extends BaseAdapter {
     public View getView(int position, View convertView, ViewGroup parent) {
         int type = getItemViewType(position);
         
-        // === RENDER HEADER CHANNEL (Seperti Screenshot: CH 0 • Root) ===
+        // === RENDER HEADER (FIX: Tanpa Gravity & Styling Aneh) ===
         if (type == HEADER_VIEW_TYPE) {
             if (convertView == null || convertView.findViewById(R.id.parentname) == null) {
                 convertView = inflater.inflate(R.layout.item_channel_back, parent, false); 
             }
             
             TextView headerTitle = convertView.findViewById(R.id.parentname);
+            TextView headerTopic = convertView.findViewById(R.id.chantopic);
+            
             if (curchannel != null) {
-                String headerText = "CH " + curchannel.nChannelID + " • " + curchannel.szName;
-                headerTitle.setText(headerText);
-                headerTitle.setTextSize(24); // Font besar seperti screenshot
-                headerTitle.setGravity(Gravity.CENTER);
-                headerTitle.setTextColor(Color.WHITE); // Sesuaikan warna background header
+                headerTitle.setText("CH " + curchannel.nChannelID + " • " + curchannel.szName);
+                headerTopic.setText(curchannel.szTopic);
             }
             return convertView;
         } 
         
-        // === RENDER USER (Flat List dengan Avatar) ===
+        // === RENDER USER (FIX: Tanpa PorterDuff Jika Import Hilang) ===
         else if (type == USER_VIEW_TYPE) {
             User user = (User) getItem(position);
             
@@ -1274,56 +1271,29 @@ class ChannelListAdapter extends BaseAdapter {
             nickname.setText(name);
             status.setText(user.szStatusMsg);
             
-            boolean selected = userIDS.contains(user.nUserID);
-            boolean isOperator = getClient().isChannelOperator(user.nUserID, user.nChannelID);
-            boolean isAdmin = (user.uUserType & UserType.USERTYPE_ADMIN) != 0;
             boolean talking = (user.uUserState & UserState.USERSTATE_VOICE) != 0;
             boolean female = (user.nStatusMode & TeamTalkConstants.STATUSMODE_FEMALE) != 0;
-            boolean neutral = (user.nStatusMode & TeamTalkConstants.STATUSMODE_NEUTRAL) != 0;
             boolean away = (user.nStatusMode & TeamTalkConstants.STATUSMODE_AWAY) != 0;
             
-            // Logic Talking State untuk diri sendiri
             if(user.nUserID == getService().getTTInstance().getMyUserID()) 
                 talking = getService().isVoiceTransmitting();
             
-            // Tentukan icon fallback gender
-            int icon_resource;
-            if (talking) icon_resource = female ? R.drawable.woman_green : R.drawable.man_green;
-            else icon_resource = female ? (away ? R.drawable.woman_orange : R.drawable.woman_blue) 
-                                       : (away ? R.drawable.man_orange : R.drawable.man_blue);
-
-            String gender = female ? " 👩 " : neutral ? "  " : " 👨 ";
-            String desc = (selected ? getString(R.string.user_state_selected) : "") + " " + 
-                          (talking ? getString(R.string.user_state_now_speaking, name) : name) + gender + 
-                          (isOperator ? getString(R.string.user_state_operator) : "") + 
-                          (isAdmin ? getString(R.string.user_state_admin) : "");
-            nickname.setContentDescription(desc.trim());
-            status.setContentDescription(away ? getString(R.string.user_state_away) + " " + user.szStatusMsg : null);
-
-            // === LOGIKA FOTO PROFIL (INTEGRASI AVATARHELPER) ===
+            // Logic Avatar Lokal
             Bitmap cachedAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), user.nUserID);
             if (cachedAvatar != null) {
-                // Jika ada foto custom, tampilkan foto tersebut
                 usericon.setImageBitmap(cachedAvatar);
-                
-                // Border hijau jika sedang bicara
-                if (talking) {
-                    usericon.setColorFilter(Color.argb(100, 0, 255, 0), PorterDuff.Mode.SRC_ATOP);
-                } else {
-                    usericon.clearColorFilter();
-                }
+                // Jika import PorterDuff masih error, hapus 3 baris di bawah ini:
+                try {
+                    if (talking) usericon.setColorFilter(Color.argb(100, 0, 255, 0), android.graphics.PorterDuff.Mode.SRC_ATOP);
+                    else usericon.clearColorFilter();
+                } catch(Exception e) { /* Abaikan jika import belum ada */ }
             } else {
-                // Jika tidak ada, tampilkan ikon gender bawaan TeamTalk
+                int icon_resource;
+                if (talking) icon_resource = female ? R.drawable.woman_green : R.drawable.man_green;
+                else icon_resource = female ? (away ? R.drawable.woman_orange : R.drawable.woman_blue) 
+                                           : (away ? R.drawable.man_orange : R.drawable.man_blue);
                 usericon.setImageResource(icon_resource);
-                usericon.clearColorFilter();
             }
-            // ===============================================================
-
-            usericon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-            
-            // Sembunyikan tombol join/channel lain karena ini single channel
-            Button joinBtn = convertView.findViewById(R.id.join_btn);
-            if(joinBtn != null) joinBtn.setVisibility(View.GONE); 
 
             Button sndmsg = convertView.findViewById(R.id.msg_btn);
             if(sndmsg != null) {
@@ -1331,7 +1301,6 @@ class ChannelListAdapter extends BaseAdapter {
                     Intent intent = new Intent(MainActivity.this, TextMessageActivity.class);
                     startActivity(intent.putExtra(TextMessageActivity.EXTRA_USERID, user.nUserID));
                 });
-                sndmsg.setAccessibilityDelegate(accessibilityAssistant);
             }
             
             return convertView;
@@ -1339,6 +1308,7 @@ class ChannelListAdapter extends BaseAdapter {
         return convertView;
     } 
 }
+// ==========================================================================
 // ==============================================================
 //==============
 
