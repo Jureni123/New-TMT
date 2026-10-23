@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- HEADER SINGLE CHANNEL MODE: CH 0 • Root -->
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="#1565C0" 
     android:paddingTop="24dp"
-    android:paddingBottom="24dp">
+    android:paddingBottom="24dp"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp">
 
-    <!-- Logo Channel (ID ASLI DIPERTAHANKAN) -->
+    <!-- Logo/Icon Channel Besar di Tengah (Opsional, sesuai screenshot) -->
     <ImageView
         android:id="@+id/channelicon"
         android:layout_width="80dp"
@@ -14,21 +18,26 @@
         android:layout_centerHorizontal="true"
         android:layout_marginBottom="12dp"
         android:src="@drawable/back_orange" 
-        android:importantForAccessibility="no" />
+        android:importantForAccessibility="no"
+        android:contentDescription="Channel Logo" />
 
-    <!-- Judul Utama (ID ASLI DIPERTAHANKAN) -->
+    <!-- Judul Header: CH [ID] • [Nama Channel] -->
     <TextView
         android:id="@+id/parentname" 
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@id/channelicon"
         android:layout_centerHorizontal="true"
+        android:text="CH 0 • Root"
         android:textSize="24sp"
         android:textStyle="bold"
         android:textColor="#FFFFFF"
-        android:gravity="center" />
+        android:gravity="center"
+        android:singleLine="false"
+        android:maxLines="2" 
+        tools:ignore="HardcodedText" />
 
-    <!-- Topic (ID ASLI DIPERTAHANKAN) -->
+    <!-- Topic/Subtitle Channel (Diperkecil & Dipudarkan) -->
     <TextView
         android:id="@+id/chantopic"
         android:layout_width="wrap_content"
@@ -39,13 +48,15 @@
         android:text=""
         android:textSize="14sp"
         android:textColor="#B3FFFFFF" 
-        android:gravity="center" />
+        android:gravity="center"
+        android:singleLine="false"
+        android:maxLines="2" />
 
-    <!-- Population (ID ASLI TETAP ADA, HANYA DIGONE AGAR TIDAK ERROR DI JAVA) -->
+    <!-- Sembunyikan elemen population karena tidak relevan untuk header -->
     <TextView
         android:id="@+id/population"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:visibility="gone" />
-
+        
 </RelativeLayout>
