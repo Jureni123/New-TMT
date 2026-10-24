@@ -1250,6 +1250,43 @@ public class MainActivity extends AppCompatActivity
 
         btnChangeAvatar = findViewById(R.id.btn_change_avatar);
         if (btnChangeAvatar != null) btnChangeAvatar.setOnClickListener(v -> openGalleryForAvatar());
+
+        // === TOMBOL SET DIUBAH JADI MENU PINDAH CHANNEL ===
+        Button btnSet = findViewById(R.id.btn_settings_shortcut);
+        if (btnSet != null) {
+            btnSet.setOnClickListener(v -> showChannelPickerDialog());
+        }
+    }
+
+    // === METHOD BARU: MENU PINDAH CHANNEL VIA TOMBOL SET ===
+    private void showChannelPickerDialog() {
+        Map<Integer, Channel> allChans = getService().getChannels();
+        List<Channel> list = new ArrayList<>(allChans.values());
+        
+        // Hapus root channel agar tidak bingung
+        list.removeIf(ch -> ch.nChannelID == getClient().getRootChannelID());
+        
+        Collections.sort(list, (c1, c2) -> c1.szName.compareToIgnoreCase(c2.szName));
+        
+        String[] names = new String[list.size()];
+        for (int i = 0; i < list.size(); i++) {
+            Channel c = list.get(i);
+            boolean isActive = (getClient().getMyChannelID() == c.nChannelID);
+            names[i] = c.szName + (isActive ? " (Aktif)" : "");
+        }
+        
+        if (names.length == 0) {
+            Toast.makeText(this, "Tidak ada channel lain", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Pindah Saluran");
+        builder.setItems(names, (dialog, which) -> {
+            joinChannel(list.get(which));
+        });
+        builder.setNegativeButton("Batal", null);
+        builder.show();
     }
     
     private void openGalleryForAvatar() {
@@ -1399,6 +1436,7 @@ public class MainActivity extends AppCompatActivity
 
     @Override public void onCmdProcessing(int cmdId, boolean complete) { if(complete) activecmds.remove(cmdId); }
 
+    // === BAGIAN LOGIN FIREBASE (TIDAK DIUBAH SAMA SEKALI) ===
     @Override
     public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
         textmsgAdapter.setMyUserID(my_userid);
@@ -1429,6 +1467,7 @@ public class MainActivity extends AppCompatActivity
             .addOnSuccessListener(aVoid -> Log.d(TAG, "✅ Data profil berhasil disimpan untuk UID: " + user.getUid()))
             .addOnFailureListener(e -> Log.e(TAG, "❌ Gagal simpan profil: " + e.getMessage()));
     }
+    // ==========================================================
 
     @Override public void onCmdMyselfLoggedOut() { accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents(); }
     @Override public void onCmdMyselfKickedFromChannel() { accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents(); }
@@ -1714,4 +1753,4 @@ public class MainActivity extends AppCompatActivity
         int sound = sounds.get(bVoiceActive ? SOUND_VOXON : SOUND_VOXOFF);
         if (sound != 0) audioIcons.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
     }
-}
+} // <-- Penutup Class MainActivity
