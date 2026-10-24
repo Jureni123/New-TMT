@@ -1,4 +1,4 @@
-name: TeamTalk5 Android Build (Public + Commit Tracking)
+name: TMT5 Android Build (new)
 
 on:
   workflow_dispatch:
@@ -137,7 +137,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           # Nama artifact sekarang unik setiap build!
-          name: TeamTalk5-Public-${{ steps.commit_info.outputs.short_sha }}
+          name: OFA-Public-${{ steps.commit_info.outputs.short_sha }}
           path: renamed_apk/*.apk
           if-no-files-found: error
       
@@ -149,5 +149,5 @@ jobs:
           echo "=========================================="
           echo "  Commit SHA : ${{ steps.commit_info.outputs.short_sha }}"
           echo "  Message    : ${{ steps.commit_info.outputs.commit_msg }}"
-          echo "  Artifact   : OFA-TM5-${{ steps.commit_info.outputs.short_sha }}"
+          echo "  Artifact   : OFA-TM5-Public-${{ steps.commit_info.outputs.short_sha }}"
           echo "=========================================="
