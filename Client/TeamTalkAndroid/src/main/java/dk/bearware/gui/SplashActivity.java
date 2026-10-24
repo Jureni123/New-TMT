@@ -57,6 +57,7 @@ public class SplashActivity extends AppCompatActivity {
                     .build();
             mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
         } catch (Exception e) {
+            // Fallback jika string resource tidak ditemukan
             GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                     .requestEmail()
                     .build();
@@ -85,28 +86,47 @@ public class SplashActivity extends AppCompatActivity {
             if (progressBar != null) progressBar.setVisibility(View.GONE);
 
             Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+            
+            // Validasi hasil sign-in dari Google
             if (task == null || !task.isSuccessful()) {
-                Toast.makeText(this, "Gagal mendapatkan akun Google", Toast.LENGTH_SHORT).show();
+                Exception exception = task != null ? task.getException() : null;
+                String errorMsg = "Gagal mendapatkan akun Google";
+                if (exception != null) {
+                    errorMsg += ": " + exception.getMessage();
+                }
+                Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
+                
+                // Reset state agar user bisa mencoba lagi
+                if (mGoogleSignInClient != null) mGoogleSignInClient.signOut();
                 return;
             }
 
             try {
                 GoogleSignInAccount account = task.getResult();
                 if (account == null) {
-                    Toast.makeText(this, "Akun Google kosong", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Data akun Google kosong", Toast.LENGTH_SHORT).show();
+                    if (mGoogleSignInClient != null) mGoogleSignInClient.signOut();
                     return;
                 }
 
                 String idToken = account.getIdToken();
+                
+                // PERBAIKAN UTAMA: Jangan pernah fallback diam-diam jika ID Token null
                 if (idToken == null || idToken.isEmpty()) {
-                    goToServerList(); // Fallback langsung lanjut
-                    return;
+                    if (tvStatus != null) tvStatus.setText("Konfigurasi OAuth Error");
+                    Toast.makeText(this, "Web Client ID salah atau SHA-1 belum terdaftar", Toast.LENGTH_LONG).show();
+                    
+                    // Paksa logout & reset UI agar tidak stuck di layar login
+                    if (mGoogleSignInClient != null) mGoogleSignInClient.signOut();
+                    return; 
                 }
 
+                // Lanjut autentikasi ke Firebase hanya jika ID Token valid
                 firebaseAuthWithGoogle(idToken);
 
             } catch (Exception e) {
-                Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Error parsing akun: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                if (mGoogleSignInClient != null) mGoogleSignInClient.signOut();
             }
         }
     }
@@ -126,8 +146,9 @@ public class SplashActivity extends AppCompatActivity {
                             goToServerList();
                         }
                     } else {
-                        Toast.makeText(this, "Login gagal", Toast.LENGTH_LONG).show();
+                        Toast.makeText(this, "Login Firebase gagal: " + task.getException().getMessage(), Toast.LENGTH_LONG).show();
                         if (progressBar != null) progressBar.setVisibility(View.GONE);
+                        if (mGoogleSignInClient != null) mGoogleSignInClient.signOut();
                     }
                 });
     }
