@@ -1,196 +1,216 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     tools:context=".MainActivity">
 
-    <!-- TAB LAYOUT (ASLI) -->
-    <com.google.android.material.tabs.TabLayout
-        android:id="@+id/tab_layout"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="#33b5e5"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp" />
-
-    <!-- VIEWPAGER UNTUK CHANNELS/CHAT/MEDIA/FILES (ASLI) -->
-    <androidx.viewpager.widget.ViewPager
-        android:id="@+id/pager"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
-
-    <!-- AREA KONTROL BARU (LINEAR HORIZONTAL) -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:background="#f5f5f5"
-        android:padding="4dp">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-        <!-- BARIS 1: INFO STATUS TIPIS (Mendatar) -->
+        <!-- TAB LAYOUT (ASLI) -->
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tab_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#33b5e5"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp" />
+
+        <!-- VIEWPAGER UNTUK CHANNELS/CHAT/MEDIA/FILES (ASLI) -->
+        <androidx.viewpager.widget.ViewPager
+            android:id="@+id/pager"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- AREA KONTROL BARU (LINEAR VERTICAL) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingBottom="4dp">
-            
-            <TextView
-                android:id="@+id/connectionstat_textview"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:textSize="10sp"
-                android:textStyle="bold"
-                android:maxLines="1"
-                android:ellipsize="end"/>
-                
-            <TextView
-                android:id="@+id/pingstat_textview"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:textSize="10sp"
-                android:maxLines="1"
-                android:ellipsize="end"/>
-                
-            <TextView
-                android:id="@+id/totalstat_textview"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:textSize="10sp"
-                android:gravity="end"
-                android:maxLines="1"
-                android:ellipsize="end"/>
-        </LinearLayout>
+            android:orientation="vertical"
+            android:background="#f5f5f5"
+            android:padding="4dp">
 
-        <!-- BARIS 2: KONTROL SUARA (Mendatar Penuh) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingTop="2dp"
-            android:paddingBottom="2dp">
-
-            <!-- KIRI: Slider Mic + Tombol Vox -->
+            <!-- BARIS 1: INFO STATUS TIPIS (Mendatar) -->
             <LinearLayout
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center">
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingBottom="4dp">
                 
-                <TextView 
-                    android:id="@+id/miclevel_text" 
-                    android:layout_width="wrap_content" 
-                    android:layout_height="wrap_content" 
-                    android:textSize="9sp"/>
+                <TextView
+                    android:id="@+id/connectionstat_textview"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:maxLines="1"
+                    android:ellipsize="end"/>
                     
-                <SeekBar 
-                    android:id="@+id/mic_gainSeekBar" 
-                    android:layout_width="match_parent" 
-                    android:layout_height="wrap_content"/>
+                <TextView
+                    android:id="@+id/pingstat_textview"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:textSize="10sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"/>
                     
-                <ImageButton 
-                    android:id="@+id/voxSwitch" 
-                    android:layout_width="32dp" 
-                    android:layout_height="32dp" 
-                    android:src="@drawable/mic_green"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="Voice Activation"/>
+                <TextView
+                    android:id="@+id/totalstat_textview"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:textSize="10sp"
+                    android:gravity="end"
+                    android:maxLines="1"
+                    android:ellipsize="end"/>
             </LinearLayout>
 
-            <!-- TENGAH: TOMBOL BICARA BESAR (Mendatar) -->
-            <Button
-                android:id="@+id/transmit_voice"
-                android:layout_width="0dp"
-                android:layout_weight="2"
-                android:layout_height="48dp"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="8dp"
-                android:background="@android:color/holo_red_light"
-                android:text="@string/button_tx"
-                android:textColor="#fff"
-                android:textStyle="bold"/>
-
-            <!-- KANAN: Slider Speaker + Tombol Mute -->
+            <!-- BARIS 2: KONTROL SUARA (Mendatar Penuh) -->
             <LinearLayout
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center">
-                
-                <TextView 
-                    android:id="@+id/vollevel_text" 
-                    android:layout_width="wrap_content" 
-                    android:layout_height="wrap_content" 
-                    android:textSize="9sp"/>
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp">
+
+                <!-- KIRI: Slider Mic + Tombol Vox -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center">
                     
-                <SeekBar 
-                    android:id="@+id/master_volSeekBar" 
-                    android:layout_width="match_parent" 
-                    android:layout_height="wrap_content"/>
+                    <TextView 
+                        android:id="@+id/miclevel_text" 
+                        android:layout_width="wrap_content" 
+                        android:layout_height="wrap_content" 
+                        android:textSize="9sp"/>
+                        
+                    <SeekBar 
+                        android:id="@+id/mic_gainSeekBar" 
+                        android:layout_width="match_parent" 
+                        android:layout_height="wrap_content"/>
+                        
+                    <ImageButton 
+                        android:id="@+id/voxSwitch" 
+                        android:layout_width="32dp" 
+                        android:layout_height="32dp" 
+                        android:src="@drawable/mic_green"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="Voice Activation"/>
+                </LinearLayout>
+
+                <!-- TENGAH: TOMBOL BICARA BESAR (Mendatar) -->
+                <Button
+                    android:id="@+id/transmit_voice"
+                    android:layout_width="0dp"
+                    android:layout_weight="2"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@android:color/holo_red_light"
+                    android:text="@string/button_tx"
+                    android:textColor="#fff"
+                    android:textStyle="bold"/>
+
+                <!-- KANAN: Slider Speaker + Tombol Mute -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center">
                     
-                <ImageButton 
-                    android:id="@+id/speakerBtn" 
-                    android:layout_width="32dp" 
-                    android:layout_height="32dp" 
-                    android:src="@drawable/speaker_blue"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="Speaker Mute"/>
+                    <TextView 
+                        android:id="@+id/vollevel_text" 
+                        android:layout_width="wrap_content" 
+                        android:layout_height="wrap_content" 
+                        android:textSize="9sp"/>
+                        
+                    <SeekBar 
+                        android:id="@+id/master_volSeekBar" 
+                        android:layout_width="match_parent" 
+                        android:layout_height="wrap_content"/>
+                        
+                    <ImageButton 
+                        android:id="@+id/speakerBtn" 
+                        android:layout_width="32dp" 
+                        android:layout_height="32dp" 
+                        android:src="@drawable/speaker_blue"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="Speaker Mute"/>
+                </LinearLayout>
             </LinearLayout>
+
+            <!-- BARIS 3: TOMBOL AKSI (Termasuk Ganti Foto!) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:paddingTop="4dp">
+
+                <!-- TOMBOL GANTI FOTO (BARU!) -->
+                <Button
+                    android:id="@+id/btn_change_avatar"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="36dp"
+                    android:text="Foto"
+                    android:textSize="10sp"
+                    android:backgroundTint="#33b5e5"
+                    android:textColor="#fff"
+                    android:layout_marginEnd="2dp"/>
+
+                <Button
+                    android:id="@+id/btn_settings_shortcut"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="36dp"
+                    android:text="Set"
+                    android:textSize="10sp"
+                    android:backgroundTint="#757575"
+                    android:textColor="#fff"
+                    android:layout_marginStart="2dp"
+                    android:layout_marginEnd="2dp"/>
+
+                <Button
+                    android:id="@+id/btn_files_shortcut"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="36dp"
+                    android:text="File"
+                    android:textSize="10sp"
+                    android:backgroundTint="#757575"
+                    android:textColor="#fff"
+                    android:layout_marginStart="2dp"/>
+            </LinearLayout>
+
         </LinearLayout>
-
-        <!-- BARIS 3: TOMBOL AKSI (Termasuk Ganti Foto!) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:paddingTop="4dp">
-
-            <!-- TOMBOL GANTI FOTO (BARU!) -->
-            <Button
-                android:id="@+id/btn_change_avatar"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="36dp"
-                android:text="Foto"
-                android:textSize="10sp"
-                android:backgroundTint="#33b5e5"
-                android:textColor="#fff"
-                android:layout_marginEnd="2dp"/>
-
-            <Button
-                android:id="@+id/btn_settings_shortcut"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="36dp"
-                android:text="Set"
-                android:textSize="10sp"
-                android:backgroundTint="#757575"
-                android:textColor="#fff"
-                android:layout_marginStart="2dp"
-                android:layout_marginEnd="2dp"/>
-
-            <Button
-                android:id="@+id/btn_files_shortcut"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="36dp"
-                android:text="File"
-                android:textSize="10sp"
-                android:backgroundTint="#757575"
-                android:textColor="#fff"
-                android:layout_marginStart="2dp"/>
-        </LinearLayout>
-
     </LinearLayout>
-</LinearLayout>
+
+    <!-- === MENU OVERLAY: FLOATING ACTION BUTTON === -->
+    <!-- Tombol ini akan melayang di atas kontrol bar untuk membuka daftar channel -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_channel_list"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:src="@android:drawable/ic_menu_sort_by_size"
+        app:tint="#ffffff"
+        android:contentDescription="Daftar Channel"
+        app:backgroundTint="#33b5e5" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
