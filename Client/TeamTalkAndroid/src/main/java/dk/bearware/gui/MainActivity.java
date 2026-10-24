@@ -77,7 +77,6 @@ import com.google.android.material.tabs.TabLayout;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.bumptech.glide.Glide;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -93,9 +92,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Vector;
 
+// Import TeamTalk & Data (SESUAI ASLI)
 import dk.bearware.Channel;
 import dk.bearware.ChannelType;
 import dk.bearware.ClientFlag;
+import dk.bearware.ClientStatistics;
 import dk.bearware.Constants;
 import dk.bearware.RemoteFile;
 import dk.bearware.ServerProperties;
@@ -111,13 +112,16 @@ import dk.bearware.UserAccount;
 import dk.bearware.UserRight;
 import dk.bearware.UserState;
 import dk.bearware.UserType;
+import dk.bearware.VideoCodec;
+import dk.bearware.MediaFileStatus;
+import dk.bearware.MediaFileInfo;
+import dk.bearware.MediaFilePlayback;
+import dk.bearware.MediaFilePlaybackConstants;
 import dk.bearware.backend.OnVoiceTransmissionToggleListener;
 import dk.bearware.backend.TeamTalkConnection;
 import dk.bearware.backend.TeamTalkConnectionListener;
 import dk.bearware.backend.TeamTalkConstants;
 import dk.bearware.backend.TeamTalkService;
-import dk.bearware.data.AbsolutePathHelper;
-import dk.bearware.data.AvatarHelper;
 import dk.bearware.data.FileListAdapter;
 import dk.bearware.data.MediaAdapter;
 import dk.bearware.data.MyTextMessage;
@@ -128,7 +132,7 @@ import dk.bearware.data.TTSWrapper;
 import dk.bearware.data.TextMessageAdapter;
 import dk.bearware.events.ClientEventListener;
 import dk.bearware.utils.PrefsHelper;
-import dk.bearware.utils.Utils;
+import dk.bearware.data.AvatarHelper;
 
 public class MainActivity extends AppCompatActivity
         implements TeamTalkConnectionListener, OnMenuItemClickListener, SensorEventListener,
@@ -178,7 +182,7 @@ public class MainActivity extends AppCompatActivity
     Map<Integer, User> users = new HashMap<>();
     private UserProfileManager profileManager; 
     
-    // === SISTEM CACHE AVATAR ===
+    // === SISTEM CACHE AVATAR (ASLI) ===
     private static class AvatarData {
         String url;
         long fetchedAt;
@@ -242,6 +246,7 @@ public class MainActivity extends AppCompatActivity
         wakeLock.setReferenceCounted(false);
         proximityWakeLock.setReferenceCounted(false);
 
+        // Adapter Channel Flat
         channelsAdapter = new ChannelListAdapter(this.getBaseContext(), profileManager);
         filesAdapter = new FileListAdapter(this, this, accessibilityAssistant);
         textmsgAdapter = new TextMessageAdapter(this, accessibilityAssistant);
@@ -264,6 +269,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    // === MENU OVERLAY CHANNEL ===
     private void setupChannelOverlay() {
         FloatingActionButton fab = findViewById(R.id.fab_channel_list);
         if (fab != null) {
@@ -389,7 +395,7 @@ public class MainActivity extends AppCompatActivity
             Intent intent = new Intent(MainActivity.this, OnlineUsersActivity.class);
             startActivity(intent);
         } else if (itemId == android.R.id.home) {
-            // Modifikasi: Home button sekarang membuka overlay channel atau keluar
+            // Modifikasi: Home button membuka overlay channel
             if (filesAdapter.getActiveTransfersCount() > 0) {
                 alert.setMessage(R.string.disconnect_alert);
                 alert.setPositiveButton(android.R.string.ok, (dialog, whichButton) -> {
@@ -399,7 +405,7 @@ public class MainActivity extends AppCompatActivity
                 alert.setNegativeButton(android.R.string.cancel, null);
                 alert.show();
             } else {
-                showChannelPickerDialog(); // Buka overlay alih-alih langsung back
+                showChannelPickerDialog(); 
             }
         } else {
             return super.onOptionsItemSelected(item);
@@ -526,7 +532,6 @@ public class MainActivity extends AppCompatActivity
         sounds.clear();
         audioIcons = new SoundPool(1, AudioManager.STREAM_MUSIC, 0);
 
-        // Load sounds based on preferences (sama seperti sebelumnya)
         if (prefs.get("server_lost_audio_icon", true)) sounds.put(SOUND_SERVERLOST, audioIcons.load(ctx, R.raw.serverlost, 1));
         if (prefs.get("rx_tx_audio_icon", true)) {
             sounds.put(SOUND_VOICETXON, audioIcons.load(ctx, R.raw.on, 1));
@@ -621,6 +626,7 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        // JALUR 1: AVATAR PROFIL
         if (requestCode == REQUEST_AVATAR_PICK) {
             if (resultCode == RESULT_OK && data != null && data.getData() != null) {
                 processAndSendAvatar(data.getData());
@@ -630,19 +636,11 @@ public class MainActivity extends AppCompatActivity
             return;
         }
 
+        // JALUR 2: UPLOAD FILE CHANNEL (Menggunakan logika asli yang aman)
         if ((requestCode == REQUEST_SELECT_FILE) && (resultCode == RESULT_OK)) {
             Uri uri = data.getData();
-            String path = AbsolutePathHelper.getRealPath(this.getBaseContext(), uri);
-            if (path != null) {
-                File localFile = new File(path);
-                if (localFile.canRead()) {
-                    startFileUpload(path);
-                } else {
-                    new FileCopyingTask().execute(uri);
-                }
-            } else {
-                new FileCopyingTask().execute(uri);
-            }
+            // Kita gunakan FileCopyingTask asli karena AbsolutePathHelper tidak ada
+            new FileCopyingTask().execute(uri);
         } else {
             super.onActivityResult(requestCode, resultCode, data);
         }
@@ -1085,6 +1083,7 @@ public class MainActivity extends AppCompatActivity
             Object item = getItem(position);
             
             if (item instanceof Channel channel) {
+                // Gunakan layout flat baru
                 if (convertView == null || convertView.findViewById(R.id.channelname) == null)
                     convertView = inflater.inflate(R.layout.item_channel_flat, parent, false);
                 
@@ -1540,8 +1539,8 @@ public class MainActivity extends AppCompatActivity
 
             Bitmap bitmap;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                ImageDecoder.Source source = ImageDecoder.createSource(getContentResolver(), imageUri);
-                bitmap = ImageDecoder.decodeBitmap(source);
+                android.graphics.ImageDecoder.Source source = android.graphics.ImageDecoder.createSource(getContentResolver(), imageUri);
+                bitmap = android.graphics.ImageDecoder.decodeBitmap(source);
             } else {
                 bitmap = android.provider.MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
             }
@@ -1724,7 +1723,7 @@ public class MainActivity extends AppCompatActivity
     private void syncProfileToFirestoreIfNeeded(int teamtalkUserId) {
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser == null) {
-            Log.e(TAG, "⚠️ User Firebase NULL saat login TeamTalk!");
+            Log.e(TAG, "️ User Firebase NULL saat login TeamTalk!");
             return;
         }
         String uid = currentUser.getUid();
@@ -2002,19 +2001,18 @@ public class MainActivity extends AppCompatActivity
                 }
                 Log.d(TAG, "Broadcast message in " + this.hashCode());
                 break;
+                
             case TextMsgType.MSGTYPE_USER:
                 if (completemsg == null) break;
                 if (sounds.get(SOUND_USERMSG) != 0) audioIcons.play(sounds.get(SOUND_USERMSG), 1.0f, 1.0f, 0, 0, 1.0f);
                 sender = getService().getUsers().get(textmessage.nFromUserID);
-                // sambungan kode atas
-name = Utils.getDisplayName(getBaseContext(), sender);
+                name = Utils.getDisplayName(getBaseContext(), sender);
                 String senderName = (sender != null) ? name : "";
                 
                 if (ttsWrapper != null && prefs.get("private_message_checkbox", false)) {
                     ttsWrapper.speak(getString(R.string.text_tts_private_message, senderName, completemsg.szMessage));
                 }
                 
-                // Notifikasi Private Message
                 Intent action = new Intent(this, TextMessageActivity.class);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     NotificationChannel mChannel = new NotificationChannel(
@@ -2058,8 +2056,6 @@ name = Utils.getDisplayName(getBaseContext(), sender);
                 break;
         }
     } // <-- Penutup method onCmdUserTextMessage
-
-    // === SISA EVENT LISTENER (WAJIB ADA AGAR TIDAK ERROR) ===
 
     @Override
     public void onCmdChannelNew(Channel channel) {
