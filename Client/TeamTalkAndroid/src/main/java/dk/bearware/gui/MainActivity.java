@@ -1399,24 +1399,37 @@ public class MainActivity extends AppCompatActivity
     }
 
     @Override public void onCmdProcessing(int cmdId, boolean complete) { if(complete) activecmds.remove(cmdId); }
-
+//========
+  // HAPUS method onCmdMyselfLoggedIn LAMA, ganti dengan ini:
     @Override
     public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
         textmsgAdapter.setMyUserID(my_userid);
         syncProfileToFirestoreIfNeeded(my_userid);
     }
 
+    // TAMBAHKAN/PASTE method ini tepat di bawah onCmdMyselfLoggedIn:
     private void syncProfileToFirestoreIfNeeded(int teamtalkUserId) {
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
-        if (currentUser == null) { Log.e(TAG, "⚠️ User Firebase NULL saat login TeamTalk!"); return; }
+        if (currentUser == null) {
+            Log.e(TAG, "️ User Firebase NULL saat login TeamTalk!");
+            return;
+        }
+        
         String uid = currentUser.getUid();
         FirebaseFirestore db = FirebaseFirestore.getInstance();
+        
         db.collection("pengguna").document(uid).get()
             .addOnSuccessListener(doc -> {
-                if (!doc.exists() || doc.getLong("teamtalk_id") == null) saveUserProfile(currentUser, teamtalkUserId);
-                else Log.d(TAG, "✅ Profil sudah ada, skip sinkronisasi");
+                if (!doc.exists() || doc.getLong("teamtalk_id") == null) {
+                    saveUserProfile(currentUser, teamtalkUserId);
+                } else {
+                    Log.d(TAG, "✅ Profil sudah ada, skip sinkronisasi");
+                }
             })
-            .addOnFailureListener(e -> { Log.w(TAG, "Gagal cek profil, mencoba simpan: " + e.getMessage()); saveUserProfile(currentUser, teamtalkUserId); });
+            .addOnFailureListener(e -> {
+                Log.w(TAG, "Gagal cek profil, mencoba simpan: " + e.getMessage());
+                saveUserProfile(currentUser, teamtalkUserId);
+            });
     }
 
     private void saveUserProfile(FirebaseUser user, int teamtalkUserId) {
@@ -1426,11 +1439,15 @@ public class MainActivity extends AppCompatActivity
         dataLengkap.put("foto_profil_url", user.getPhotoUrl() != null ? user.getPhotoUrl().toString() : "");
         dataLengkap.put("teamtalk_id", teamtalkUserId);
         dataLengkap.put("lastLogin", System.currentTimeMillis());
-        FirebaseFirestore.getInstance().collection("pengguna").document(user.getUid()).set(dataLengkap)
+        
+        FirebaseFirestore.getInstance()
+            .collection("pengguna")
+            .document(user.getUid()) 
+            .set(dataLengkap)
             .addOnSuccessListener(aVoid -> Log.d(TAG, "✅ Data profil berhasil disimpan untuk UID: " + user.getUid()))
             .addOnFailureListener(e -> Log.e(TAG, "❌ Gagal simpan profil: " + e.getMessage()));
     }
-
+//========
     @Override public void onCmdMyselfLoggedOut() { accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents(); }
     @Override public void onCmdMyselfKickedFromChannel() { accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents(); }
     @Override public void onCmdMyselfKickedFromChannel(User kicker) { accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents(); }
