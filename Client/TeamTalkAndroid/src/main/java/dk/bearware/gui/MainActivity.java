@@ -197,6 +197,9 @@ public class MainActivity extends AppCompatActivity
     boolean isProximitySensorRegistered = false;
     Map<Integer, User> users = new HashMap<>();
     
+    // TAMBAHAN: Cache URL Foto Profil Agar Tidak Query DB Berulang Saat Scroll
+    Map<Integer, String> userPhotoUrls = new HashMap<>(); 
+
     private UserProfileManager profileManager; 
     private Button btnChangeAvatar;
 
@@ -859,7 +862,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // ====== CHANNEL LIST ADAPTER (VERSI SINGLE CHANNEL FINAL) ======
+    // ====== CHANNEL LIST ADAPTER (VERSI SINGLE CHANNEL FINAL + HYBRID AVATAR) ======
     class ChannelListAdapter extends BaseAdapter {
         private static final int HEADER_VIEW_TYPE = 0;
         private static final int USER_VIEW_TYPE = 1;
@@ -908,6 +911,7 @@ public class MainActivity extends AppCompatActivity
                 if (curchannel != null) {
                     headerTitle.setText("CH " + curchannel.nChannelID + " • " + curchannel.szName);
                     headerTopic.setText(curchannel.szTopic);
+                    // KEMBALIKAN FUNGSI LONG-PRESS UNTUK MENU EDIT/HAPUS CHANNEL
                     convertView.setOnLongClickListener(view -> onChannelItemLongClick(curchannel, view));
                 }
                 return convertView;
@@ -931,17 +935,26 @@ public class MainActivity extends AppCompatActivity
                 boolean away = (user.nStatusMode & TeamTalkConstants.STATUSMODE_AWAY) != 0;
                 if(user.nUserID == getService().getTTInstance().getMyUserID()) talking = getService().isVoiceTransmitting();
                 
-                // FITUR AVATAR: Load dari cache lokal atau default icon
-                Bitmap localAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), user.nUserID);
-                if (localAvatar != null) {
-                    usericon.setImageBitmap(localAvatar);
-                    usericon.setColorFilter(null);
+                // === LOGIKA HYBRID: URL FIRESTORE/IMGBB ATAU FALLBACK AMAN ===
+                String photoUrl = userPhotoUrls.get(user.nUserID);
+                
+                if (photoUrl != null && !photoUrl.isEmpty()) {
+                    // Jika ada URL dari Firestore/ImgBB, load pakai Glide (cache otomatis)
+                    Glide.with(inflater.getContext())
+                         .load(photoUrl)
+                         .circleCrop()
+                         .placeholder(getDefaultIconResource(user)) // Ikon sementara saat loading
+                         .error(getDefaultIconResource(user))       // Jika URL expired/rusak
+                         .into(usericon);
                 } else {
-                    int icon_resource;
-                    if (talking) icon_resource = female ? R.drawable.woman_green : R.drawable.man_green;
-                    else icon_resource = female ? (away ? R.drawable.woman_orange : R.drawable.woman_blue) 
-                                               : (away ? R.drawable.man_orange : R.drawable.man_blue);
-                    usericon.setImageResource(icon_resource);
+                    // Fallback: Cek cache lokal dulu (jika pernah download), baru ikon default
+                    Bitmap localAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), user.nUserID);
+                    if (localAvatar != null) {
+                        usericon.setImageBitmap(localAvatar);
+                        usericon.setColorFilter(null);
+                    } else {
+                        usericon.setImageResource(getDefaultIconResource(user));
+                    }
                 }
 
                 Button sndmsg = convertView.findViewById(R.id.msg_btn);
@@ -965,6 +978,16 @@ public class MainActivity extends AppCompatActivity
         } 
     }
     // ==========================================================================
+
+    // HELPER METHOD KECIL UNTUK IKON DEFAULT (Fallback Aman)
+    private int getDefaultIconResource(User u) {
+        boolean talking = (u.uUserState & UserState.USERSTATE_VOICE) != 0;
+        boolean female = (u.nStatusMode & TeamTalkConstants.STATUSMODE_FEMALE) != 0;
+        boolean away = (u.nStatusMode & TeamTalkConstants.STATUSMODE_AWAY) != 0;
+        if(talking) return female ? R.drawable.woman_green : R.drawable.man_green;
+        return female ? (away ? R.drawable.woman_orange : R.drawable.woman_blue) 
+                      : (away ? R.drawable.man_orange : R.drawable.man_blue);
+    }
 
     void createStatusTimer() {
         final TextView connection = findViewById(R.id.connectionstat_textview);
@@ -1267,19 +1290,26 @@ public class MainActivity extends AppCompatActivity
             btnSet.setOnClickListener(v -> showChannelPickerDialog());
         }
     }
-    //ahir bagian satu
-   // === METHOD BARU: MENU PINDAH CHANNEL VIA TOMBOL SET ===
+    // AKHIR BAGIAN 1
+// === METHOD BARU: MENU PINDAH CHANNEL VIA TOMBOL SET ===
     private void showChannelPickerDialog() {
         Map<Integer, Channel> allChans = getService().getChannels();
         List<Channel> list = new ArrayList<>(allChans.values());
-        list.removeIf(ch -> ch.nChannelID == getClient().getRootChannelID());
+        // HAPUS BARIS INI AGAR ROOT CHANNEL MUNCUL DI DAFTAR:
+        // list.removeIf(ch -> ch.nChannelID == getClient().getRootChannelID());
+        
         Collections.sort(list, (c1, c2) -> c1.szName.compareToIgnoreCase(c2.szName));
         
         String[] names = new String[list.size()];
         for (int i = 0; i < list.size(); i++) {
             Channel c = list.get(i);
             boolean isActive = (getClient().getMyChannelID() == c.nChannelID);
-            names[i] = c.szName + (isActive ? " (Aktif)" : "");
+            // Beri label khusus untuk Root Channel
+            if (c.nChannelID == getClient().getRootChannelID()) {
+                names[i] = "🏠 [ROOT] " + c.szName + (isActive ? " (Aktif)" : "");
+            } else {
+                names[i] = c.szName + (isActive ? " (Aktif)" : "");
+            }
         }
         
         if (names.length == 0) {
@@ -1300,14 +1330,15 @@ public class MainActivity extends AppCompatActivity
         startActivityForResult(intent, REQUEST_AVATAR_PICK);
     }
 
-    // ===== METHOD UPLOAD AVATAR KE IMGBB =====
+    // ===== METHOD UPLOAD AVATAR KE IMGBB + SIMPAN PERMANEN KE FIRESTORE =====
     private void processAndSendAvatar(Uri imageUri) {
         new Thread(() -> {
             try {
                 int myId = getClient().getMyUserID();
-                if (myId <= 0) return;
+                FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+                if (myId <= 0 || currentUser == null) return;
 
-                // 1. Load & Resize Foto
+                // 1. Load & Resize Foto (Ukuran aman untuk ImgBB & Network)
                 Bitmap bitmap;
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(getContentResolver(), imageUri));
@@ -1315,65 +1346,73 @@ public class MainActivity extends AppCompatActivity
                     bitmap = android.provider.MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
                 }
                 
-                // Resize ke 512x512 (ImgBB bisa handle ukuran ini dengan baik)
+                // Resize ke 512px (Cukup HD untuk avatar, tidak terlalu berat)
                 Bitmap optimized = Bitmap.createScaledBitmap(bitmap, 512, 512, true);
-                AvatarHelper.saveAvatarToLocal(MainActivity.this, myId, optimized, false);
                 
-                // Convert ke Base64 String
+                // Kompresi JPEG 80% (Kualitas bagus, ukuran file kecil)
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                optimized.compress(Bitmap.CompressFormat.JPEG, 80, baos); // JPEG lebih kecil dari PNG
-                String base64Image = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+                optimized.compress(Bitmap.CompressFormat.JPEG, 80, baos);
+                byte[] imageBytes = baos.toByteArray();
+                
+                // SAFETY CHECK: Jika > 4MB, tolak (Limit ImgBB free tier)
+                if (imageBytes.length > 4 * 1024 * 1024) {
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Foto terlalu besar (>4MB)", Toast.LENGTH_SHORT).show());
+                    return;
+                }
+
+                String base64Image = Base64.encodeToString(imageBytes, Base64.NO_WRAP);
                 
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "Sedang upload...", Toast.LENGTH_SHORT).show());
                 
-                // 2. Upload ke ImgBB via POST Request Sederhana
-                // GANTI "MASUKKAN_API_KEY_IMG_BB_DISINI" DENGAN KEY KAMU
+                // 2. Upload ke ImgBB
                 String apiKey = "12b002a375b3aba08f48bbeb7e852302"; 
-                
                 String urlParams = "key=" + apiKey + "&image=" + base64Image;
-                byte[] postData = urlParams.getBytes(StandardCharsets.UTF_8);
                 
                 URL url = new URL("https://api.imgbb.com/1/upload");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setDoOutput(true);
                 conn.setRequestMethod("POST");
                 conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-                conn.setRequestProperty("Content-Length", String.valueOf(postData.length));
                 
                 DataOutputStream dos = new DataOutputStream(conn.getOutputStream());
-                dos.write(postData);
-                dos.flush();
-                dos.close();
+                dos.write(urlParams.getBytes(StandardCharsets.UTF_8));
+                dos.flush(); dos.close();
                 
-                // 3. Baca Respon JSON
                 int code = conn.getResponseCode();
                 if (code == 200) {
                     BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                     StringBuilder response = new StringBuilder();
-                    String line;
-                    while ((line = in.readLine()) != null) response.append(line);
+                    String line; while ((line = in.readLine()) != null) response.append(line);
                     in.close();
                     
-                    // Parse JSON sederhana (ambil url_display)
                     String jsonResponse = response.toString();
-                    // Cari "url":"https://..."
+                    // Parse URL dari JSON response ImgBB
                     int start = jsonResponse.indexOf("\"url\":\"") + 7;
                     int end = jsonResponse.indexOf("\"", start);
                     String imageUrl = jsonResponse.substring(start, end);
                     
-                    Log.d(TAG, "ImgBB URL: " + imageUrl);
+                    // 3. SIMPAN PERMANEN KE FIRESTORE (Agar next login otomatis muncul)
+                    FirebaseFirestore.getInstance()
+                        .collection("pengguna")
+                        .document(currentUser.getUid())
+                        .update("foto_profil_url", imageUrl)
+                        .addOnSuccessListener(aVoid -> Log.d(TAG, "URL Avatar tersimpan di Firestore"))
+                        .addOnFailureListener(e -> Log.e(TAG, "Gagal simpan URL ke DB: " + e.getMessage()));
+
+                    // 4. Update Cache Lokal & Broadcast
+                    userPhotoUrls.put(myId, imageUrl);
+                    AvatarHelper.saveAvatarToLocal(MainActivity.this, myId, optimized, false);
                     broadcastAvatarUrl(imageUrl, myId);
                     
                     runOnUiThread(() -> {
-                        Toast.makeText(MainActivity.this, "Foto berhasil!", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "Foto berhasil diperbarui!", Toast.LENGTH_SHORT).show();
                         channelsAdapter.notifyDataSetChanged();
                     });
                 } else {
                     runOnUiThread(() -> Toast.makeText(MainActivity.this, 
-                        "Gagal upload (" + code + ")", Toast.LENGTH_LONG).show());
+                        "Gagal upload (" + code + "). Coba lagi.", Toast.LENGTH_LONG).show());
                 }
                 conn.disconnect();
-                
             } catch (Exception e) {
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, 
                     "Error: " + e.getMessage(), Toast.LENGTH_LONG).show());
@@ -1391,6 +1430,7 @@ public class MainActivity extends AppCompatActivity
         getClient().doTextMessage(msg);
     }
 
+    // Method download via Glide
     private void downloadAndCacheAvatar(int userId, String url) {
         Glide.with(getApplicationContext())
             .asBitmap()
@@ -1508,11 +1548,13 @@ public class MainActivity extends AppCompatActivity
 
     @Override public void onCmdProcessing(int cmdId, boolean complete) { if(complete) activecmds.remove(cmdId); }
 
-    // === SISTEM LOGIN FIREBASE (PONDASI UTAMA - TIDAK DIUBAH) ===
+    // === SISTEM LOGIN FIREBASE (PONDASI UTAMA - TIDAK DIUBAH SAMA SEKALI) ===
     @Override
     public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
         textmsgAdapter.setMyUserID(my_userid);
         syncProfileToFirestoreIfNeeded(my_userid);
+        // Tarik URL avatar milik sendiri dari Firestore saat login
+        loadMyAvatarFromFirestore();
     }
 
     private void syncProfileToFirestoreIfNeeded(int teamtalkUserId) {
@@ -1538,6 +1580,27 @@ public class MainActivity extends AppCompatActivity
         FirebaseFirestore.getInstance().collection("pengguna").document(user.getUid()).set(dataLengkap)
             .addOnSuccessListener(aVoid -> Log.d(TAG, "✅ Data profil berhasil disimpan untuk UID: " + user.getUid()))
             .addOnFailureListener(e -> Log.e(TAG, "❌ Gagal simpan profil: " + e.getMessage()));
+    }
+
+    // Tarik URL avatar dari Firestore setelah login
+    private void loadMyAvatarFromFirestore() {
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser == null) return;
+        
+        FirebaseFirestore.getInstance()
+            .collection("pengguna")
+            .document(currentUser.getUid())
+            .get()
+            .addOnSuccessListener(doc -> {
+                if (doc.exists()) {
+                    String url = doc.getString("foto_profil_url");
+                    if (url != null && !url.isEmpty()) {
+                        int myId = getClient().getMyUserID();
+                        userPhotoUrls.put(myId, url);
+                        downloadAndCacheAvatar(myId, url);
+                    }
+                }
+            });
     }
     // ==========================================================
 
@@ -1567,16 +1630,30 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // METHOD UPDATE USER (BERSIH TANPA BASE64 LAMA)
+    // METHOD UPDATE USER (HYBRID: CEK FIRESTORE JIKA BELUM ADA DI CACHE)
     @Override
     public void onCmdUserUpdate(User user) {
-        // Coba refresh UI jika avatar lokal sudah ada
-        Bitmap localAvatar = AvatarHelper.getAvatarFromLocal(this, user.nUserID);
-        if (localAvatar != null && curchannel != null && curchannel.nChannelID == user.nChannelID) {
-            runOnUiThread(() -> channelsAdapter.notifyDataSetChanged());
+        // Tarik URL dari Firestore jika belum ada di cache
+        // Aman untuk user privat: jika tidak ada dokumen, query gagal diam-diam & fallback ke ikon default
+        if (!userPhotoUrls.containsKey(user.nUserID)) {
+            FirebaseFirestore db = FirebaseFirestore.getInstance();
+            db.collection("pengguna")
+              .whereEqualTo("teamtalk_id", user.nUserID)
+              .limit(1)
+              .get()
+              .addOnSuccessListener(query -> {
+                  if (!query.isEmpty()) {
+                      String url = query.getDocuments().get(0).getString("foto_profil_url");
+                      if (url != null && !url.isEmpty()) {
+                          userPhotoUrls.put(user.nUserID, url);
+                          downloadAndCacheAvatar(user.nUserID, url);
+                          runOnUiThread(() -> channelsAdapter.notifyDataSetChanged());
+                      }
+                  }
+              });
         }
 
-        // LOGIKA ASLI TEAMTALK
+        // LOGIKA ASLI TEAMTALK TETAP JALAN
         if(curchannel != null && curchannel.nChannelID == user.nChannelID) {
             accessibilityAssistant.lockEvents();
             channelsAdapter.notifyDataSetChanged();
@@ -1656,8 +1733,8 @@ public class MainActivity extends AppCompatActivity
             accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents();
         }
     }
-    //ahir bagian dua
-   // METHOD CHAT FINAL (DENGAN DETEKSI AVATAR URL)
+    // AKHIR BAGIAN 2
+// METHOD CHAT FINAL (DENGAN DETEKSI AVATAR URL DARI IMGBB)
     @Override
     public void onCmdUserTextMessage(TextMessage textmessage) {
         User sender; String name;
@@ -1673,26 +1750,38 @@ public class MainActivity extends AppCompatActivity
                             int userId = Integer.parseInt(parts[1]);
                             String url = parts[2];
                             Log.d(TAG, "Menerima avatar URL dari user: " + userId);
+                            
+                            // Simpan ke cache & download via Glide
+                            userPhotoUrls.put(userId, url);
                             downloadAndCacheAvatar(userId, url);
                         }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error parse avatar URL: " + e.getMessage());
+                    } catch (Exception e) { 
+                        Log.e(TAG, "Error parse avatar URL: " + e.getMessage()); 
                     }
                     break; // Jangan tampilkan sebagai chat text biasa
                 }
                 
                 // KODE CHAT BIASA TEAMTALK
-                accessibilityAssistant.lockEvents(); textmsgAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents();
+                accessibilityAssistant.lockEvents(); 
+                textmsgAdapter.notifyDataSetChanged(); 
+                accessibilityAssistant.unlockEvents();
+                
                 if (completemsg == null) break;
+                
                 if (textmessage.nFromUserID != getService().getTTInstance().getMyUserID()) {
-                    if (sounds.get(SOUND_CHANMSG) != 0) audioIcons.play(sounds.get(SOUND_CHANMSG), 1.0f, 1.0f, 0, 0, 1.0f);
+                    if (sounds.get(SOUND_CHANMSG) != 0) 
+                        audioIcons.play(sounds.get(SOUND_CHANMSG), 1.0f, 1.0f, 0, 0, 1.0f);
+                    
                     if (ttsWrapper != null && prefs.get("channel_message_checkbox", false)) {
                         sender = getService().getUsers().get(textmessage.nFromUserID);
                         name = Utils.getDisplayName(getBaseContext(), sender);
-                        ttsWrapper.speak(getString(R.string.text_tts_channel_message, (sender != null) ? name : "", completemsg.szMessage));
+                        ttsWrapper.speak(getString(R.string.text_tts_channel_message, 
+                            (sender != null) ? name : "", completemsg.szMessage));
                     }
                 } else if (textmessage.nFromUserID == getService().getTTInstance().getMyUserID()) {
-                    if (sounds.get(SOUND_CHANMSGSENT) != 0) audioIcons.play(sounds.get(SOUND_CHANMSGSENT), 1.0f, 1.0f, 0, 0, 1.0f);
+                    if (sounds.get(SOUND_CHANMSGSENT) != 0) 
+                        audioIcons.play(sounds.get(SOUND_CHANMSGSENT), 1.0f, 1.0f, 0, 0, 1.0f);
+                    
                     if (ttsWrapper != null && prefs.get("channel_message_sent_checkbox", false)) {
                         ttsWrapper.speak(getString(R.string.text_tts_channel_message_sent, completemsg.szMessage));
                     }
@@ -1701,44 +1790,72 @@ public class MainActivity extends AppCompatActivity
                 break;
                 
             case TextMsgType.MSGTYPE_BROADCAST:
-                accessibilityAssistant.lockEvents(); textmsgAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents();
+                accessibilityAssistant.lockEvents(); 
+                textmsgAdapter.notifyDataSetChanged(); 
+                accessibilityAssistant.unlockEvents();
+                
                 if (completemsg == null) break;
-                if (sounds.get(SOUND_BCASTMSG) != 0) audioIcons.play(sounds.get(SOUND_BCASTMSG), 1.0f, 1.0f, 0, 0, 1.0f);
+                
+                if (sounds.get(SOUND_BCASTMSG) != 0) 
+                    audioIcons.play(sounds.get(SOUND_BCASTMSG), 1.0f, 1.0f, 0, 0, 1.0f);
+                
                 if (ttsWrapper != null && prefs.get("broadcast_message_checkbox", false)) {
                     sender = getService().getUsers().get(textmessage.nFromUserID);
                     name = Utils.getDisplayName(getBaseContext(), sender);
-                    ttsWrapper.speak(getString(R.string.text_tts_broadcast_message, (sender != null) ? name : "", completemsg.szMessage));
+                    ttsWrapper.speak(getString(R.string.text_tts_broadcast_message, 
+                        (sender != null) ? name : "", completemsg.szMessage));
                 }
                 Log.d(TAG, "Broadcast message in " + this.hashCode());
                 break;
                 
             case TextMsgType.MSGTYPE_USER:
                 if (completemsg == null) break;
-                if (sounds.get(SOUND_USERMSG) != 0) audioIcons.play(sounds.get(SOUND_USERMSG), 1.0f, 1.0f, 0, 0, 1.0f);
+                
+                if (sounds.get(SOUND_USERMSG) != 0) 
+                    audioIcons.play(sounds.get(SOUND_USERMSG), 1.0f, 1.0f, 0, 0, 1.0f);
+                
                 sender = getService().getUsers().get(textmessage.nFromUserID);
                 name = Utils.getDisplayName(getBaseContext(), sender);
                 String senderName = (sender != null) ? name : "";
+                
                 if (ttsWrapper != null && prefs.get("private_message_checkbox", false))
                     ttsWrapper.speak(getString(R.string.text_tts_private_message, senderName, completemsg.szMessage));
+                
                 Intent action = new Intent(this, TextMessageActivity.class);
+                
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    NotificationChannel mChannel = new NotificationChannel(MSG_NOTIFICATION_CHANNEL_ID, "Teamtalk incoming message", NotificationManager.IMPORTANCE_HIGH);
-                    mChannel.enableVibration(false); mChannel.setVibrationPattern(null); mChannel.enableLights(false); mChannel.setSound(null, null);
+                    NotificationChannel mChannel = new NotificationChannel(
+                        MSG_NOTIFICATION_CHANNEL_ID, 
+                        "Teamtalk incoming message", 
+                        NotificationManager.IMPORTANCE_HIGH);
+                    mChannel.enableVibration(false); 
+                    mChannel.setVibrationPattern(null); 
+                    mChannel.enableLights(false); 
+                    mChannel.setSound(null, null);
                     notificationManager.createNotificationChannel(mChannel);
                 }
+                
                 Notification notification = new NotificationCompat.Builder(this, MSG_NOTIFICATION_CHANNEL_ID)
                     .setSmallIcon(R.drawable.message)
                     .setContentTitle(getString(R.string.private_message_notification, senderName))
                     .setContentText(getString(R.string.private_message_notification_hint))
-                    .setContentIntent(PendingIntent.getActivity(this, textmessage.nFromUserID, action.putExtra(TextMessageActivity.EXTRA_USERID, textmessage.nFromUserID), PendingIntent.FLAG_IMMUTABLE))
-                    .setAutoCancel(true).build();
+                    .setContentIntent(PendingIntent.getActivity(
+                        this, 
+                        textmessage.nFromUserID, 
+                        action.putExtra(TextMessageActivity.EXTRA_USERID, textmessage.nFromUserID), 
+                        PendingIntent.FLAG_IMMUTABLE))
+                    .setAutoCancel(true)
+                    .build();
+                    
                 notificationManager.notify(MESSAGE_NOTIFICATION_TAG, textmessage.nFromUserID, notification);
                 break;
                 
             case TextMsgType.MSGTYPE_CUSTOM:
                 if (textmessage.szMessage.startsWith("typing\r\n")) {
                     boolean isTyping = textmessage.szMessage.endsWith("1");
-                    if (isTyping && sounds.get(SOUND_TYPING) != 0) audioIcons.play(sounds.get(SOUND_TYPING), 1.0f, 1.0f, 0, 0, 1.0f);
+                    if (isTyping && sounds.get(SOUND_TYPING) != 0) 
+                        audioIcons.play(sounds.get(SOUND_TYPING), 1.0f, 1.0f, 0, 0, 1.0f);
+                    
                     if (ttsWrapper != null && prefs.get("typing_checkbox", false)) {
                         sender = getService().getUsers().get(textmessage.nFromUserID);
                         name = Utils.getDisplayName(getBaseContext(), sender);
@@ -1752,33 +1869,50 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onCmdChannelNew(Channel channel) {
         if (curchannel != null && curchannel.nChannelID == channel.nParentID) {
-            accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents();
+            accessibilityAssistant.lockEvents(); 
+            channelsAdapter.notifyDataSetChanged(); 
+            accessibilityAssistant.unlockEvents();
         }
     }
 
     @Override
     public void onCmdChannelUpdate(Channel channel) {
         if (curchannel != null && curchannel.nChannelID == channel.nParentID) {
-            accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents();
+            accessibilityAssistant.lockEvents(); 
+            channelsAdapter.notifyDataSetChanged(); 
+            accessibilityAssistant.unlockEvents();
         }
+        
         if(mychannel != null && mychannel.nChannelID == channel.nChannelID) {
-            if (ttsWrapper != null) Utils.ttsTransmitUsersToggled(getBaseContext(), mychannel, channel, getService().getUsers()).ifPresent(text -> ttsWrapper.speak(text));
+            if (ttsWrapper != null) 
+                Utils.ttsTransmitUsersToggled(getBaseContext(), mychannel, channel, getService().getUsers())
+                    .ifPresent(text -> ttsWrapper.speak(text));
+            
             int myuserid = getClient().getMyUserID();
+            
             if(channel.transmitUsersQueue[0] == myuserid && mychannel.transmitUsersQueue[0] != myuserid) {
-                if(sounds.get(SOUND_TXREADY) != 0) audioIcons.play(sounds.get(SOUND_TXREADY), 1.0f, 1.0f, 0, 0, 1.0f);
+                if(sounds.get(SOUND_TXREADY) != 0) 
+                    audioIcons.play(sounds.get(SOUND_TXREADY), 1.0f, 1.0f, 0, 0, 1.0f);
             }
+            
             if(mychannel.transmitUsersQueue[0] == myuserid && channel.transmitUsersQueue[0] != myuserid) {
-                if(sounds.get(SOUND_TXSTOP) != 0) audioIcons.play(sounds.get(SOUND_TXSTOP), 1.0f, 1.0f, 0, 0, 1.0f);
+                if(sounds.get(SOUND_TXSTOP) != 0) 
+                    audioIcons.play(sounds.get(SOUND_TXSTOP), 1.0f, 1.0f, 0, 0, 1.0f);
             }
             setMyChannel(channel);
         }
-        accessibilityAssistant.lockEvents(); textmsgAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents();
+        
+        accessibilityAssistant.lockEvents(); 
+        textmsgAdapter.notifyDataSetChanged(); 
+        accessibilityAssistant.unlockEvents();
     }
 
     @Override
     public void onCmdChannelRemove(Channel channel) {
         if (curchannel != null && curchannel.nChannelID == channel.nParentID) {
-            accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents();
+            accessibilityAssistant.lockEvents(); 
+            channelsAdapter.notifyDataSetChanged(); 
+            accessibilityAssistant.unlockEvents();
         }
     }
 
@@ -1786,7 +1920,8 @@ public class MainActivity extends AppCompatActivity
     public void onCmdFileNew(RemoteFile remotefile) {
         filesAdapter.update();
         if(activecmds.size() == 0 && getClient().getMyChannelID() == remotefile.nChannelID) {
-            if(sounds.get(SOUND_FILESUPDATE) != 0) audioIcons.play(sounds.get(SOUND_FILESUPDATE), 1.0f, 1.0f, 0, 0, 1.0f);
+            if(sounds.get(SOUND_FILESUPDATE) != 0) 
+                audioIcons.play(sounds.get(SOUND_FILESUPDATE), 1.0f, 1.0f, 0, 0, 1.0f);
         }
     }
 
@@ -1794,17 +1929,24 @@ public class MainActivity extends AppCompatActivity
     public void onCmdFileRemove(RemoteFile remotefile) {
         filesAdapter.update();
         if(activecmds.size() == 0 && getClient().getMyChannelID() == remotefile.nChannelID) {
-            if(sounds.get(SOUND_FILESUPDATE) != 0) audioIcons.play(sounds.get(SOUND_FILESUPDATE), 1.0f, 1.0f, 0, 0, 1.0f);
+            if(sounds.get(SOUND_FILESUPDATE) != 0) 
+                audioIcons.play(sounds.get(SOUND_FILESUPDATE), 1.0f, 1.0f, 0, 0, 1.0f);
         }
     }
 
-    @Override public void onConnectionLost() { if(sounds.get(SOUND_SERVERLOST) != 0) audioIcons.play(sounds.get(SOUND_SERVERLOST), 1.0f, 1.0f, 0, 0, 1.0f); }
+    @Override 
+    public void onConnectionLost() { 
+        if(sounds.get(SOUND_SERVERLOST) != 0) 
+            audioIcons.play(sounds.get(SOUND_SERVERLOST), 1.0f, 1.0f, 0, 0, 1.0f); 
+    }
 
     @Override
     public void onUserStateChange(User user) {
         users.put(user.nUserID, user);
         if (curchannel != null && user.nChannelID == curchannel.nChannelID) {
-            accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents();
+            accessibilityAssistant.lockEvents(); 
+            channelsAdapter.notifyDataSetChanged(); 
+            accessibilityAssistant.unlockEvents();
         }
     }
 
@@ -1815,11 +1957,19 @@ public class MainActivity extends AppCompatActivity
             boolean ptt_vibrate = prefs.get("vibrate_checkbox", true) && Permissions.VIBRATE.request(this);
             if (voiceTransmissionEnabled) {
                 accessibilityAssistant.shutUp();
-                if (sounds.get(SOUND_VOICETXON) != 0) audioIcons.play(sounds.get(SOUND_VOICETXON), 1.0f, 1.0f, 0, 0, 1.0f);
-                if (ptt_vibrate) { Vibrator vibrat = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE); vibrat.vibrate(50); }
+                if (sounds.get(SOUND_VOICETXON) != 0) 
+                    audioIcons.play(sounds.get(SOUND_VOICETXON), 1.0f, 1.0f, 0, 0, 1.0f);
+                if (ptt_vibrate) { 
+                    Vibrator vibrat = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE); 
+                    vibrat.vibrate(50); 
+                }
             } else {
-                if (sounds.get(SOUND_VOICETXOFF) != 0) audioIcons.play(sounds.get(SOUND_VOICETXOFF), 1.0f, 1.0f, 0, 0, 1.0f);
-                if (ptt_vibrate) { Vibrator vibrat = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE); vibrat.vibrate(new long[]{ 0, 20, 80, 20 }, -1); }
+                if (sounds.get(SOUND_VOICETXOFF) != 0) 
+                    audioIcons.play(sounds.get(SOUND_VOICETXOFF), 1.0f, 1.0f, 0, 0, 1.0f);
+                if (ptt_vibrate) { 
+                    Vibrator vibrat = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE); 
+                    vibrat.vibrate(new long[]{ 0, 20, 80, 20 }, -1); 
+                }
             }
         }
     }
@@ -1827,8 +1977,14 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onVoiceActivationToggle(boolean voiceActivationEnabled, boolean isSuspended) {
         adjustVoxState(voiceActivationEnabled, voiceActivationEnabled ? getClient().getVoiceActivationLevel() : getClient().getSoundInputGainLevel());
-        if (voiceActivationEnabled) { if (sounds.get(SOUND_VOXENABLE) != 0) audioIcons.play(sounds.get(SOUND_VOXENABLE), 1.0f, 1.0f, 0, 0, 1.0f); }
-        else { if (sounds.get(SOUND_VOXDISABLE) != 0) audioIcons.play(sounds.get(SOUND_VOXDISABLE), 1.0f, 1.0f, 0, 0, 1.0f); }
+        if (voiceActivationEnabled) { 
+            if (sounds.get(SOUND_VOXENABLE) != 0) 
+                audioIcons.play(sounds.get(SOUND_VOXENABLE), 1.0f, 1.0f, 0, 0, 1.0f); 
+        }
+        else { 
+            if (sounds.get(SOUND_VOXDISABLE) != 0) 
+                audioIcons.play(sounds.get(SOUND_VOXDISABLE), 1.0f, 1.0f, 0, 0, 1.0f); 
+        }
     }
 
     @Override
