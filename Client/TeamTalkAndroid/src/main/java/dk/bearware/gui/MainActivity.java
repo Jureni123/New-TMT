@@ -95,6 +95,7 @@ import java.util.List;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageDecoder;
+import android.graphics.drawable.Drawable; // <--- TAMBAHKAN BARIS INI KAWAN!
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
