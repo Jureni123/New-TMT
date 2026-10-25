@@ -72,6 +72,10 @@ import androidx.fragment.app.FragmentPagerAdapter;
 import androidx.fragment.app.ListFragment;
 import androidx.viewpager.widget.ViewPager;
 
+
+import com.bumptech.glide.load.engine.GlideException;
+import com.bumptech.glide.request.RequestListener;
+import com.bumptech.glide.load.DataSource;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.target.CustomTarget;
 import com.bumptech.glide.request.transition.Transition;
@@ -1291,25 +1295,46 @@ public class MainActivity extends AppCompatActivity
 
     // Method download via Glide (Pure Firestore URL)
     private void downloadAndCacheAvatar(int userId, String url) {
+        // Cek dulu apakah sudah ada di storage lokal sebelum download ulang
+        Bitmap localBitmap = AvatarHelper.getAvatarFromLocal(getApplicationContext(), userId);
+        if (localBitmap != null) {
+            // Sudah ada di lokal, langsung pakai! Tidak perlu query/download lagi
+            userPhotoUrls.put(userId, url); // Update cache RAM juga
+            runOnUiThread(() -> channelsAdapter.notifyDataSetChanged());
+            return;
+        }
+
+        // Baru download jika belum ada di lokal
         Glide.with(getApplicationContext())
             .asBitmap()
             .load(url)
-            .override(128, 128)
+            .override(256, 256) // Ukuran lebih besar agar kualitas bagus saat di-save
             .centerCrop()
+            .diskCacheStrategy(DiskCacheStrategy.ALL) // Cache di disk & memory
             .into(new CustomTarget<Bitmap>() {
                 @Override
                 public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
-                    AvatarHelper.saveAvatarToLocal(MainActivity.this, userId, resource, false);
-                    User u = users.get(userId);
-                    if (u != null && curchannel != null && u.nChannelID == curchannel.nChannelID) {
-                        runOnUiThread(() -> channelsAdapter.notifyDataSetChanged());
+                    // SIMPAN KE LOKAL DENGAN FORCE
+                    boolean saved = AvatarHelper.saveAvatarToLocal(MainActivity.this, userId, resource, true); // true = overwrite
+                    if (saved) {
+                        Log.d(TAG, "Avatar saved locally for user: " + userId);
+                    } else {
+                        Log.e(TAG, "FAILED to save avatar locally for user: " + userId);
                     }
+                    
+                    userPhotoUrls.put(userId, url);
+                    runOnUiThread(() -> channelsAdapter.notifyDataSetChanged());
                 }
+
+                @Override
+                public void onLoadFailed(@Nullable Drawable errorDrawable) {
+                    Log.e(TAG, "Glide failed to load avatar for user: " + userId + " URL: " + url);
+                }
+
                 @Override
                 public void onLoadCleared(@Nullable Drawable placeholder) {}
             });
     }
-    
     private void initializeTeamTalkService(TeamTalkService service) {
         this.users = new HashMap<>(service.getUsers());
         int mychanid = getClient().getMyChannelID();
@@ -1489,13 +1514,41 @@ public class MainActivity extends AppCompatActivity
     }
 
     // METHOD UPDATE USER (OTOMATIS CEK FIRESTORE URL)
-    @Override
+  @Override
     public void onCmdUserUpdate(User user) {
-        // OTOMATIS TARIK URL DARI FIRESTORE JIKA BELUM ADA DI CACHE
+        // PRIORITAS 1: Cek Storage Lokal Dulu (Super Cepat)
+        Bitmap localBitmap = AvatarHelper.getAvatarFromLocal(getApplicationContext(), user.nUserID);
+        if (localBitmap != null) {
+            // Sudah punya foto lokal, masukkan ke cache RAM dan tampilkan
+            // Kita butuh URL untuk cache RAM, tapi kalau belum ada, biarkan null dulu
+            // atau ambil dari dokumen Firestore sekali saja lalu simpan di SharedPrefs
+            if (!userPhotoUrls.containsKey(user.nUserID)) {
+                 // Opsional: Ambil URL dari Firestore SEKALI SAJA lalu simpan di SharedPreferences
+                 // Agar next restart tidak perlu query lagi
+            }
+            runOnUiThread(() -> channelsAdapter.notifyDataSetChanged());
+            
+            // Lanjutkan logika asli TeamTalk
+            if(curchannel != null && curchannel.nChannelID == user.nChannelID) {
+                accessibilityAssistant.lockEvents();
+                channelsAdapter.notifyDataSetChanged();
+                accessibilityAssistant.unlockEvents();
+            }
+            subscriptionChange(user);
+            users.put(user.nUserID, user);
+            accessibilityAssistant.lockEvents();
+            textmsgAdapter.notifyDataSetChanged();
+            accessibilityAssistant.unlockEvents();
+            return; // STOP DI SINI, TIDAK PERLU QUERY FIRESTORE
+        }
+
+        // PRIORITAS 2: Hanya query Firestore JIKA TIDAK ADA DI LOKAL
         if (!userPhotoUrls.containsKey(user.nUserID)) {
             FirebaseFirestore db = FirebaseFirestore.getInstance();
+            long ttId = (long) user.nUserID; 
+            
             db.collection("pengguna")
-              .whereEqualTo("teamtalk_id", user.nUserID)
+              .whereEqualTo("teamtalk_id", ttId) 
               .limit(1)
               .get()
               .addOnSuccessListener(query -> {
@@ -1503,8 +1556,7 @@ public class MainActivity extends AppCompatActivity
                       String url = query.getDocuments().get(0).getString("foto_profil_url");
                       if (url != null && !url.isEmpty()) {
                           userPhotoUrls.put(user.nUserID, url);
-                          downloadAndCacheAvatar(user.nUserID, url);
-                          runOnUiThread(() -> channelsAdapter.notifyDataSetChanged());
+                          downloadAndCacheAvatar(user.nUserID, url); // Ini akan save ke lokal
                       }
                   }
               });
