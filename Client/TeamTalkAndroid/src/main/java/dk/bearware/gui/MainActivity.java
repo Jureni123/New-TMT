@@ -62,6 +62,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
@@ -71,11 +72,13 @@ import androidx.fragment.app.FragmentPagerAdapter;
 import androidx.fragment.app.ListFragment;
 import androidx.viewpager.widget.ViewPager;
 
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.request.target.CustomTarget;
+import com.bumptech.glide.request.transition.Transition;
 import com.google.android.material.tabs.TabLayout;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.bumptech.glide.Glide;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -90,15 +93,25 @@ import java.util.Set;
 import java.util.Vector;
 import java.util.List;
 
-// Import untuk Avatar & Bitmap
+// Import Avatar & Bitmap
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageDecoder;
+import android.graphics.drawable.Drawable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import android.util.Base64;
 
-// ... import TeamTalk SDK lainnya ...
+// Import OkHttp untuk upload ke 0x0.st
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+
+// Import TeamTalk SDK
 import dk.bearware.Channel;
 import dk.bearware.ChannelType;
 import dk.bearware.ClientFlag;
@@ -162,7 +175,7 @@ public class MainActivity extends AppCompatActivity
 
     public final int REQUEST_EDITCHANNEL = 1, REQUEST_NEWCHANNEL = 2,
                      REQUEST_EDITUSER = 3, REQUEST_SELECT_FILE = 4,
-                     REQUEST_AVATAR_PICK = 9002; // Request code untuk avatar
+                     REQUEST_AVATAR_PICK = 9002;
 
     CountDownTimer stats_timer = null;
     TeamTalkConnection mConnection;
@@ -239,7 +252,6 @@ public class MainActivity extends AppCompatActivity
         wakeLock.setReferenceCounted(false);
         proximityWakeLock.setReferenceCounted(false);
 
-        // Inisialisasi Adapter Single Channel
         channelsAdapter = new ChannelListAdapter(this.getBaseContext());
         filesAdapter = new FileListAdapter(this, this, accessibilityAssistant);
         textmsgAdapter = new TextMessageAdapter(this, accessibilityAssistant);
@@ -899,8 +911,6 @@ public class MainActivity extends AppCompatActivity
                 if (curchannel != null) {
                     headerTitle.setText("CH " + curchannel.nChannelID + " • " + curchannel.szName);
                     headerTopic.setText(curchannel.szTopic);
-                    
-                    // TAMBAHKAN BARIS INI DI SINI:
                     convertView.setOnLongClickListener(view -> onChannelItemLongClick(curchannel, view));
                 }
                 return convertView;
@@ -924,7 +934,7 @@ public class MainActivity extends AppCompatActivity
                 boolean away = (user.nStatusMode & TeamTalkConstants.STATUSMODE_AWAY) != 0;
                 if(user.nUserID == getService().getTTInstance().getMyUserID()) talking = getService().isVoiceTransmitting();
                 
-                // FITUR 1: POTONG JALUR DRAWABLE, AMBIL LANGSUNG DARI FILE MEMORI
+                // FITUR AVATAR: Load dari cache lokal atau default icon
                 Bitmap localAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), user.nUserID);
                 if (localAvatar != null) {
                     usericon.setImageBitmap(localAvatar);
@@ -937,7 +947,6 @@ public class MainActivity extends AppCompatActivity
                     usericon.setImageResource(icon_resource);
                 }
 
-                // FITUR 2: TOMBOL PESAN
                 Button sndmsg = convertView.findViewById(R.id.msg_btn);
                 if(sndmsg != null) {
                     sndmsg.setOnClickListener(v -> {
@@ -946,13 +955,11 @@ public class MainActivity extends AppCompatActivity
                     });
                 }
 
-                // FITUR 3: KLIK ITEM UNTUK MELIHAT PROPERTI USER
                 convertView.setOnClickListener(view -> {
                     Intent intent = new Intent(MainActivity.this, UserPropActivity.class);
                     startActivityForResult(intent.putExtra(UserPropActivity.EXTRA_USERID, user.nUserID), REQUEST_EDITUSER);
                 });
 
-                // FITUR TAMBAHAN: LONG CLICK UNTUK MENU AKSI
                 convertView.setOnLongClickListener(view -> onChannelItemLongClick(user, view));
                 
                 return convertView;
@@ -1253,6 +1260,7 @@ public class MainActivity extends AppCompatActivity
             }
         });
 
+        // === TOMBOL GANTI AVATAR ===
         btnChangeAvatar = findViewById(R.id.btn_change_avatar);
         if (btnChangeAvatar != null) btnChangeAvatar.setOnClickListener(v -> openGalleryForAvatar());
 
@@ -1263,14 +1271,11 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // === METHOD BARU: MENU PINDAH CHANNEL VIA TOMBOL SET ===
+// === METHOD BARU: MENU PINDAH CHANNEL VIA TOMBOL SET ===
     private void showChannelPickerDialog() {
         Map<Integer, Channel> allChans = getService().getChannels();
         List<Channel> list = new ArrayList<>(allChans.values());
-        
-        // Hapus root channel agar tidak bingung
         list.removeIf(ch -> ch.nChannelID == getClient().getRootChannelID());
-        
         Collections.sort(list, (c1, c2) -> c1.szName.compareToIgnoreCase(c2.szName));
         
         String[] names = new String[list.size()];
@@ -1287,9 +1292,7 @@ public class MainActivity extends AppCompatActivity
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Pindah Saluran");
-        builder.setItems(names, (dialog, which) -> {
-            joinChannel(list.get(which));
-        });
+        builder.setItems(names, (dialog, which) -> joinChannel(list.get(which)));
         builder.setNegativeButton("Batal", null);
         builder.show();
     }
@@ -1300,7 +1303,7 @@ public class MainActivity extends AppCompatActivity
         startActivityForResult(intent, REQUEST_AVATAR_PICK);
     }
 
-    // METHOD PENGIRIM AVATAR VIA STATUS (JERNIH 96x96)
+    // ===== METHOD UPLOAD AVATAR KE 0X0.ST =====
     private void processAndSendAvatar(Uri imageUri) {
         try {
             int myId = getClient().getMyUserID();
@@ -1313,37 +1316,87 @@ public class MainActivity extends AppCompatActivity
                 bitmap = android.provider.MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
             }
             
-            // Resize 96x96 + Quality 70% (Jernih tapi aman untuk szStatusMsg)
-            Bitmap optimized = Bitmap.createScaledBitmap(bitmap, 96, 96, true);
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            optimized.compress(Bitmap.CompressFormat.JPEG, 70, baos);
-            byte[] bytes = baos.toByteArray();
-            
-            // Safety check: max 180 byte data mentah agar tidak ditolak server
-            if (bytes.length > 180) {
-                Toast.makeText(this, "Gambar terlalu detail. Coba foto lain.", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            String base64 = Base64.encodeToString(bytes, Base64.NO_WRAP);
-            
-            // Simpan lokal dulu
+            Bitmap optimized = Bitmap.createScaledBitmap(bitmap, 256, 256, true);
             AvatarHelper.saveAvatarToLocal(this, myId, optimized, false);
             
-            // Kirim via szStatusMsg dengan prefix AV:
-            User myself = getService().getUsers().get(myId);
-            if (myself != null) {
-                getClient().doChangeStatus(myself.nStatusMode, "AV:" + base64);
-            }
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            optimized.compress(Bitmap.CompressFormat.PNG, 90, baos);
+            byte[] imageBytes = baos.toByteArray();
             
-            Toast.makeText(this, "Foto jernih terkirim!", Toast.LENGTH_SHORT).show();
-            channelsAdapter.notifyDataSetChanged();
-
+            Toast.makeText(this, "Sedang upload foto...", Toast.LENGTH_SHORT).show();
+            
+            OkHttpClient client = new OkHttpClient();
+            RequestBody requestBody = new MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("file", "avatar_" + myId + ".png", 
+                    RequestBody.create(imageBytes, MediaType.parse("image/png")))
+                .build();
+                
+            Request request = new Request.Builder()
+                .url("https://0x0.st")
+                .post(requestBody)
+                .build();
+                
+            client.newCall(request).enqueue(new Callback() {
+                @Override
+                public void onFailure(Call call, IOException e) {
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, 
+                        "Upload gagal: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                }
+                
+                @Override
+                public void onResponse(Call call, Response response) throws IOException {
+                    if (response.isSuccessful()) {
+                        String imageUrl = response.body().string().trim();
+                        Log.d(TAG, "Avatar URL: " + imageUrl);
+                        broadcastAvatarUrl(imageUrl, myId);
+                        
+                        runOnUiThread(() -> {
+                            Toast.makeText(MainActivity.this, "Foto berhasil diupdate!", Toast.LENGTH_SHORT).show();
+                            channelsAdapter.notifyDataSetChanged();
+                        });
+                    } else {
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, 
+                            "Upload ditolak server", Toast.LENGTH_LONG).show());
+                    }
+                }
+            });
+            
         } catch (Exception e) {
             Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
             e.printStackTrace();
         }
     }
+
+    private void broadcastAvatarUrl(String avatarUrl, int userId) {
+        if (curchannel == null) return;
+        TextMessage msg = new TextMessage();
+        msg.nMsgType = TextMsgType.MSGTYPE_CHANNEL;
+        msg.nChannelID = curchannel.nChannelID;
+        msg.szMessage = "AVATAR_URL:" + userId + ":" + avatarUrl;
+        getClient().doTextMessage(msg);
+    }
+
+    private void downloadAndCacheAvatar(int userId, String url) {
+        Glide.with(getApplicationContext())
+            .asBitmap()
+            .load(url)
+            .override(128, 128)
+            .centerCrop()
+            .into(new CustomTarget<Bitmap>() {
+                @Override
+                public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
+                    AvatarHelper.saveAvatarToLocal(MainActivity.this, userId, resource, false);
+                    User u = users.get(userId);
+                    if (u != null && curchannel != null && u.nChannelID == curchannel.nChannelID) {
+                        runOnUiThread(() -> channelsAdapter.notifyDataSetChanged());
+                    }
+                }
+                @Override
+                public void onLoadCleared(@Nullable Drawable placeholder) {}
+            });
+    }
+    // ===== AKHIR METHOD AVATAR =====
     
     private void initializeTeamTalkService(TeamTalkService service) {
         this.users = new HashMap<>(service.getUsers());
@@ -1441,7 +1494,7 @@ public class MainActivity extends AppCompatActivity
 
     @Override public void onCmdProcessing(int cmdId, boolean complete) { if(complete) activecmds.remove(cmdId); }
 
-    // === BAGIAN LOGIN FIREBASE (TIDAK DIUBAH SAMA SEKALI) ===
+    // === SISTEM LOGIN FIREBASE (PONDASI UTAMA - TIDAK DIUBAH) ===
     @Override
     public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
         textmsgAdapter.setMyUserID(my_userid);
@@ -1500,24 +1553,16 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // METHOD UPDATE USER FINAL (DETEKSI AVATAR + LOGIKA ASLI)
+    // METHOD UPDATE USER (BERSIH TANPA BASE64 LAMA)
     @Override
     public void onCmdUserUpdate(User user) {
-        // === DETEKSI AVATAR VIA STATUS MESSAGE ===
-        if (user.szStatusMsg != null && user.szStatusMsg.startsWith("AV:")) {
-            try {
-                String b64 = user.szStatusMsg.substring(3);
-                byte[] data = Base64.decode(b64, Base64.NO_WRAP);
-                Bitmap bmp = BitmapFactory.decodeByteArray(data, 0, data.length);
-                if (bmp != null) {
-                    AvatarHelper.saveAvatarToLocal(this, user.nUserID, bmp, false);
-                    runOnUiThread(() -> channelsAdapter.notifyDataSetChanged());
-                }
-            } catch (Exception e) { Log.e(TAG, "Gagal decode avatar: " + e.getMessage()); }
-            return; // STOP DI SINI
+        // Coba refresh UI jika avatar lokal sudah ada
+        Bitmap localAvatar = AvatarHelper.getAvatarFromLocal(this, user.nUserID);
+        if (localAvatar != null && curchannel != null && curchannel.nChannelID == user.nChannelID) {
+            runOnUiThread(() -> channelsAdapter.notifyDataSetChanged());
         }
 
-        // === LOGIKA ASLI TEAMTALK ===
+        // LOGIKA ASLI TEAMTALK
         if(curchannel != null && curchannel.nChannelID == user.nChannelID) {
             accessibilityAssistant.lockEvents();
             channelsAdapter.notifyDataSetChanged();
@@ -1598,7 +1643,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // METHOD CHAT FINAL (BERSIH TANPA FILTER AVATAR)
+    // METHOD CHAT FINAL (DENGAN DETEKSI AVATAR URL)
     @Override
     public void onCmdUserTextMessage(TextMessage textmessage) {
         User sender; String name;
@@ -1606,6 +1651,23 @@ public class MainActivity extends AppCompatActivity
         
         switch (textmessage.nMsgType) {
             case TextMsgType.MSGTYPE_CHANNEL:
+                // CEK APAKAH INI PESAN UPDATE AVATAR DARI 0X0.ST
+                if (textmessage.szMessage != null && textmessage.szMessage.startsWith("AVATAR_URL:")) {
+                    try {
+                        String[] parts = textmessage.szMessage.split(":", 3);
+                        if (parts.length == 3) {
+                            int userId = Integer.parseInt(parts[1]);
+                            String url = parts[2];
+                            Log.d(TAG, "Menerima avatar URL dari user: " + userId);
+                            downloadAndCacheAvatar(userId, url);
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error parse avatar URL: " + e.getMessage());
+                    }
+                    break; // Jangan tampilkan sebagai chat text biasa
+                }
+                
+                // KODE CHAT BIASA TEAMTALK
                 accessibilityAssistant.lockEvents(); textmsgAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents();
                 if (completemsg == null) break;
                 if (textmessage.nFromUserID != getService().getTTInstance().getMyUserID()) {
@@ -1623,6 +1685,7 @@ public class MainActivity extends AppCompatActivity
                 }
                 Log.d(TAG, "Channel message in " + this.hashCode());
                 break;
+                
             case TextMsgType.MSGTYPE_BROADCAST:
                 accessibilityAssistant.lockEvents(); textmsgAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents();
                 if (completemsg == null) break;
@@ -1634,6 +1697,7 @@ public class MainActivity extends AppCompatActivity
                 }
                 Log.d(TAG, "Broadcast message in " + this.hashCode());
                 break;
+                
             case TextMsgType.MSGTYPE_USER:
                 if (completemsg == null) break;
                 if (sounds.get(SOUND_USERMSG) != 0) audioIcons.play(sounds.get(SOUND_USERMSG), 1.0f, 1.0f, 0, 0, 1.0f);
@@ -1656,6 +1720,7 @@ public class MainActivity extends AppCompatActivity
                     .setAutoCancel(true).build();
                 notificationManager.notify(MESSAGE_NOTIFICATION_TAG, textmessage.nFromUserID, notification);
                 break;
+                
             case TextMsgType.MSGTYPE_CUSTOM:
                 if (textmessage.szMessage.startsWith("typing\r\n")) {
                     boolean isTyping = textmessage.szMessage.endsWith("1");
