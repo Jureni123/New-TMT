@@ -72,13 +72,15 @@ import androidx.fragment.app.FragmentPagerAdapter;
 import androidx.fragment.app.ListFragment;
 import androidx.viewpager.widget.ViewPager;
 
-
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy; // <--- TAMBAHKAN INI
 import com.bumptech.glide.load.engine.GlideException;
 import com.bumptech.glide.request.RequestListener;
-import com.bumptech.glide.load.DataSource;
-import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.target.CustomTarget;
+import com.bumptech.glide.request.target.Target;
 import com.bumptech.glide.request.transition.Transition;
+import com.bumptech.glide.load.DataSource;
+
 import com.google.android.material.tabs.TabLayout;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -1294,6 +1296,7 @@ public class MainActivity extends AppCompatActivity
     }
 
     // Method download via Glide (Pure Firestore URL)
+ // Method download via Glide (Pure Firestore URL)
     private void downloadAndCacheAvatar(int userId, String url) {
         // Cek dulu apakah sudah ada di storage lokal sebelum download ulang
         Bitmap localBitmap = AvatarHelper.getAvatarFromLocal(getApplicationContext(), userId);
@@ -1308,19 +1311,17 @@ public class MainActivity extends AppCompatActivity
         Glide.with(getApplicationContext())
             .asBitmap()
             .load(url)
-            .override(256, 256) // Ukuran lebih besar agar kualitas bagus saat di-save
+            .override(256, 256) 
             .centerCrop()
-            .diskCacheStrategy(DiskCacheStrategy.ALL) // Cache di disk & memory
+            .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.ALL) // Gunakan nama lengkap agar pasti terbaca
             .into(new CustomTarget<Bitmap>() {
                 @Override
                 public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
                     // SIMPAN KE LOKAL DENGAN FORCE
-                    boolean saved = AvatarHelper.saveAvatarToLocal(MainActivity.this, userId, resource, true); // true = overwrite
-                    if (saved) {
-                        Log.d(TAG, "Avatar saved locally for user: " + userId);
-                    } else {
-                        Log.e(TAG, "FAILED to save avatar locally for user: " + userId);
-                    }
+                    // PERBAIKAN 1: Hapus 'boolean saved =' karena AvatarHelper mengembalikan void
+                    AvatarHelper.saveAvatarToLocal(MainActivity.this, userId, resource, true); 
+                    
+                    Log.d(TAG, "Avatar saved locally for user: " + userId);
                     
                     userPhotoUrls.put(userId, url);
                     runOnUiThread(() -> channelsAdapter.notifyDataSetChanged());
