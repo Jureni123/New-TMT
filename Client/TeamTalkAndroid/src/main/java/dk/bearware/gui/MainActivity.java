@@ -1328,7 +1328,7 @@ public class MainActivity extends AppCompatActivity
                 
                 // 2. Upload ke ImgBB via POST Request Sederhana
                 // GANTI "MASUKKAN_API_KEY_IMG_BB_DISINI" DENGAN KEY KAMU
-                String apiKey = "MASUKKAN_API_KEY_IMG_BB_DISINI"; 
+                String apiKey = "12b002a375b3aba08f48bbeb7e852302"; 
                 
                 String urlParams = "key=" + apiKey + "&image=" + base64Image;
                 byte[] postData = urlParams.getBytes(StandardCharsets.UTF_8);
