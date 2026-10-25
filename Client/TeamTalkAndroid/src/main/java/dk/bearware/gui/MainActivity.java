@@ -80,22 +80,14 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.Vector;
 import java.util.List;
 
@@ -103,10 +95,8 @@ import java.util.List;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageDecoder;
-import android.graphics.drawable.Drawable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import android.util.Base64;
 
 // Import TeamTalk SDK
 import dk.bearware.Channel;
@@ -171,8 +161,7 @@ public class MainActivity extends AppCompatActivity
     private static final String MSG_NOTIFICATION_CHANNEL_ID = "TT_PM";
 
     public final int REQUEST_EDITCHANNEL = 1, REQUEST_NEWCHANNEL = 2,
-                     REQUEST_EDITUSER = 3, REQUEST_SELECT_FILE = 4,
-                     REQUEST_AVATAR_PICK = 9002;
+                     REQUEST_EDITUSER = 3, REQUEST_SELECT_FILE = 4;
 
     CountDownTimer stats_timer = null;
     TeamTalkConnection mConnection;
@@ -197,11 +186,10 @@ public class MainActivity extends AppCompatActivity
     boolean isProximitySensorRegistered = false;
     Map<Integer, User> users = new HashMap<>();
     
-    // TAMBAHAN: Cache URL Foto Profil Agar Tidak Query DB Berulang Saat Scroll
+    // CACHE URL FOTO DARI FIRESTORE AGAR TIDAK QUERY BERULANG SAAT SCROLL
     Map<Integer, String> userPhotoUrls = new HashMap<>(); 
 
     private UserProfileManager profileManager; 
-    private Button btnChangeAvatar;
 
     static final String MESSAGE_NOTIFICATION_TAG = "incoming_message";
     final int SOUND_VOICETXON = 1, SOUND_VOICETXOFF = 2, SOUND_USERMSG = 3,
@@ -558,14 +546,6 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == REQUEST_AVATAR_PICK) {
-            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
-                processAndSendAvatar(data.getData());
-            } else {
-                Toast.makeText(this, "Pemilihan foto dibatalkan", Toast.LENGTH_SHORT).show();
-            }
-            return;
-        }
         if ((requestCode == REQUEST_SELECT_FILE) && (resultCode == RESULT_OK)) {
             Uri uri = data.getData();
             String path = AbsolutePathHelper.getRealPath(this.getBaseContext(), uri);
@@ -862,7 +842,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // ====== CHANNEL LIST ADAPTER (VERSI SINGLE CHANNEL FINAL + HYBRID AVATAR) ======
+    // ====== CHANNEL LIST ADAPTER (VERSI SINGLE CHANNEL FINAL + AUTO FIRESTORE AVATAR) ======
     class ChannelListAdapter extends BaseAdapter {
         private static final int HEADER_VIEW_TYPE = 0;
         private static final int USER_VIEW_TYPE = 1;
@@ -911,7 +891,6 @@ public class MainActivity extends AppCompatActivity
                 if (curchannel != null) {
                     headerTitle.setText("CH " + curchannel.nChannelID + " • " + curchannel.szName);
                     headerTopic.setText(curchannel.szTopic);
-                    // KEMBALIKAN FUNGSI LONG-PRESS UNTUK MENU EDIT/HAPUS CHANNEL
                     convertView.setOnLongClickListener(view -> onChannelItemLongClick(curchannel, view));
                 }
                 return convertView;
@@ -935,26 +914,18 @@ public class MainActivity extends AppCompatActivity
                 boolean away = (user.nStatusMode & TeamTalkConstants.STATUSMODE_AWAY) != 0;
                 if(user.nUserID == getService().getTTInstance().getMyUserID()) talking = getService().isVoiceTransmitting();
                 
-                // === LOGIKA HYBRID: URL FIRESTORE/IMGBB ATAU FALLBACK AMAN ===
+                // === LOGIKA MURNI FIRESTORE URL (OTOMATIS) ===
                 String photoUrl = userPhotoUrls.get(user.nUserID);
                 
                 if (photoUrl != null && !photoUrl.isEmpty()) {
-                    // Jika ada URL dari Firestore/ImgBB, load pakai Glide (cache otomatis)
                     Glide.with(inflater.getContext())
                          .load(photoUrl)
                          .circleCrop()
-                         .placeholder(getDefaultIconResource(user)) // Ikon sementara saat loading
-                         .error(getDefaultIconResource(user))       // Jika URL expired/rusak
+                         .placeholder(getDefaultIconResource(user)) 
+                         .error(getDefaultIconResource(user))       
                          .into(usericon);
                 } else {
-                    // Fallback: Cek cache lokal dulu (jika pernah download), baru ikon default
-                    Bitmap localAvatar = AvatarHelper.getAvatarFromLocal(inflater.getContext(), user.nUserID);
-                    if (localAvatar != null) {
-                        usericon.setImageBitmap(localAvatar);
-                        usericon.setColorFilter(null);
-                    } else {
-                        usericon.setImageResource(getDefaultIconResource(user));
-                    }
+                    usericon.setImageResource(getDefaultIconResource(user));
                 }
 
                 Button sndmsg = convertView.findViewById(R.id.msg_btn);
@@ -979,7 +950,7 @@ public class MainActivity extends AppCompatActivity
     }
     // ==========================================================================
 
-    // HELPER METHOD KECIL UNTUK IKON DEFAULT (Fallback Aman)
+    // HELPER METHOD KECIL UNTUK IKON DEFAULT
     private int getDefaultIconResource(User u) {
         boolean talking = (u.uUserState & UserState.USERSTATE_VOICE) != 0;
         boolean female = (u.nStatusMode & TeamTalkConstants.STATUSMODE_FEMALE) != 0;
@@ -1280,10 +1251,6 @@ public class MainActivity extends AppCompatActivity
             }
         });
 
-        // === TOMBOL GANTI AVATAR ===
-        btnChangeAvatar = findViewById(R.id.btn_change_avatar);
-        if (btnChangeAvatar != null) btnChangeAvatar.setOnClickListener(v -> openGalleryForAvatar());
-
         // === TOMBOL SET DIUBAH JADI MENU PINDAH CHANNEL ===
         Button btnSet = findViewById(R.id.btn_settings_shortcut);
         if (btnSet != null) {
@@ -1295,8 +1262,6 @@ public class MainActivity extends AppCompatActivity
     private void showChannelPickerDialog() {
         Map<Integer, Channel> allChans = getService().getChannels();
         List<Channel> list = new ArrayList<>(allChans.values());
-        // HAPUS BARIS INI AGAR ROOT CHANNEL MUNCUL DI DAFTAR:
-        // list.removeIf(ch -> ch.nChannelID == getClient().getRootChannelID());
         
         Collections.sort(list, (c1, c2) -> c1.szName.compareToIgnoreCase(c2.szName));
         
@@ -1304,7 +1269,6 @@ public class MainActivity extends AppCompatActivity
         for (int i = 0; i < list.size(); i++) {
             Channel c = list.get(i);
             boolean isActive = (getClient().getMyChannelID() == c.nChannelID);
-            // Beri label khusus untuk Root Channel
             if (c.nChannelID == getClient().getRootChannelID()) {
                 names[i] = "🏠 [ROOT] " + c.szName + (isActive ? " (Aktif)" : "");
             } else {
@@ -1323,114 +1287,8 @@ public class MainActivity extends AppCompatActivity
         builder.setNegativeButton("Batal", null);
         builder.show();
     }
-    
-    private void openGalleryForAvatar() {
-        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-        intent.setType("image/*");
-        startActivityForResult(intent, REQUEST_AVATAR_PICK);
-    }
 
-    // ===== METHOD UPLOAD AVATAR KE IMGBB + SIMPAN PERMANEN KE FIRESTORE =====
-    private void processAndSendAvatar(Uri imageUri) {
-        new Thread(() -> {
-            try {
-                int myId = getClient().getMyUserID();
-                FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
-                if (myId <= 0 || currentUser == null) return;
-
-                // 1. Load & Resize Foto (Ukuran aman untuk ImgBB & Network)
-                Bitmap bitmap;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(getContentResolver(), imageUri));
-                } else {
-                    bitmap = android.provider.MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
-                }
-                
-                // Resize ke 512px (Cukup HD untuk avatar, tidak terlalu berat)
-                Bitmap optimized = Bitmap.createScaledBitmap(bitmap, 512, 512, true);
-                
-                // Kompresi JPEG 80% (Kualitas bagus, ukuran file kecil)
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                optimized.compress(Bitmap.CompressFormat.JPEG, 80, baos);
-                byte[] imageBytes = baos.toByteArray();
-                
-                // SAFETY CHECK: Jika > 4MB, tolak (Limit ImgBB free tier)
-                if (imageBytes.length > 4 * 1024 * 1024) {
-                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Foto terlalu besar (>4MB)", Toast.LENGTH_SHORT).show());
-                    return;
-                }
-
-                String base64Image = Base64.encodeToString(imageBytes, Base64.NO_WRAP);
-                
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Sedang upload...", Toast.LENGTH_SHORT).show());
-                
-                // 2. Upload ke ImgBB
-                String apiKey = "12b002a375b3aba08f48bbeb7e852302"; 
-                String urlParams = "key=" + apiKey + "&image=" + base64Image;
-                
-                URL url = new URL("https://api.imgbb.com/1/upload");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setDoOutput(true);
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-                
-                DataOutputStream dos = new DataOutputStream(conn.getOutputStream());
-                dos.write(urlParams.getBytes(StandardCharsets.UTF_8));
-                dos.flush(); dos.close();
-                
-                int code = conn.getResponseCode();
-                if (code == 200) {
-                    BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                    StringBuilder response = new StringBuilder();
-                    String line; while ((line = in.readLine()) != null) response.append(line);
-                    in.close();
-                    
-                    String jsonResponse = response.toString();
-                    // Parse URL dari JSON response ImgBB
-                    int start = jsonResponse.indexOf("\"url\":\"") + 7;
-                    int end = jsonResponse.indexOf("\"", start);
-                    String imageUrl = jsonResponse.substring(start, end);
-                    
-                    // 3. SIMPAN PERMANEN KE FIRESTORE (Agar next login otomatis muncul)
-                    FirebaseFirestore.getInstance()
-                        .collection("pengguna")
-                        .document(currentUser.getUid())
-                        .update("foto_profil_url", imageUrl)
-                        .addOnSuccessListener(aVoid -> Log.d(TAG, "URL Avatar tersimpan di Firestore"))
-                        .addOnFailureListener(e -> Log.e(TAG, "Gagal simpan URL ke DB: " + e.getMessage()));
-
-                    // 4. Update Cache Lokal & Broadcast
-                    userPhotoUrls.put(myId, imageUrl);
-                    AvatarHelper.saveAvatarToLocal(MainActivity.this, myId, optimized, false);
-                    broadcastAvatarUrl(imageUrl, myId);
-                    
-                    runOnUiThread(() -> {
-                        Toast.makeText(MainActivity.this, "Foto berhasil diperbarui!", Toast.LENGTH_SHORT).show();
-                        channelsAdapter.notifyDataSetChanged();
-                    });
-                } else {
-                    runOnUiThread(() -> Toast.makeText(MainActivity.this, 
-                        "Gagal upload (" + code + "). Coba lagi.", Toast.LENGTH_LONG).show());
-                }
-                conn.disconnect();
-            } catch (Exception e) {
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, 
-                    "Error: " + e.getMessage(), Toast.LENGTH_LONG).show());
-                e.printStackTrace();
-            }
-        }).start();
-    }
-
-    private void broadcastAvatarUrl(String avatarUrl, int userId) {
-        if (curchannel == null) return;
-        TextMessage msg = new TextMessage();
-        msg.nMsgType = TextMsgType.MSGTYPE_CHANNEL;
-        msg.nChannelID = curchannel.nChannelID;
-        msg.szMessage = "AVATAR_URL:" + userId + ":" + avatarUrl;
-        getClient().doTextMessage(msg);
-    }
-
-    // Method download via Glide
+    // Method download via Glide (Pure Firestore URL)
     private void downloadAndCacheAvatar(int userId, String url) {
         Glide.with(getApplicationContext())
             .asBitmap()
@@ -1450,7 +1308,6 @@ public class MainActivity extends AppCompatActivity
                 public void onLoadCleared(@Nullable Drawable placeholder) {}
             });
     }
-    // ===== AKHIR METHOD AVATAR =====
     
     private void initializeTeamTalkService(TeamTalkService service) {
         this.users = new HashMap<>(service.getUsers());
@@ -1553,7 +1410,7 @@ public class MainActivity extends AppCompatActivity
     public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
         textmsgAdapter.setMyUserID(my_userid);
         syncProfileToFirestoreIfNeeded(my_userid);
-        // Tarik URL avatar milik sendiri dari Firestore saat login
+        // OTOMATIS TARIK URL AVATAR MILIK SENDIRI DARI FIRESTORE SAAT LOGIN
         loadMyAvatarFromFirestore();
     }
 
@@ -1582,7 +1439,7 @@ public class MainActivity extends AppCompatActivity
             .addOnFailureListener(e -> Log.e(TAG, "❌ Gagal simpan profil: " + e.getMessage()));
     }
 
-    // Tarik URL avatar dari Firestore setelah login
+    // Tarik URL avatar dari Firestore setelah login (Otomatis tanpa upload)
     private void loadMyAvatarFromFirestore() {
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser == null) return;
@@ -1630,11 +1487,10 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // METHOD UPDATE USER (HYBRID: CEK FIRESTORE JIKA BELUM ADA DI CACHE)
+    // METHOD UPDATE USER (OTOMATIS CEK FIRESTORE URL)
     @Override
     public void onCmdUserUpdate(User user) {
-        // Tarik URL dari Firestore jika belum ada di cache
-        // Aman untuk user privat: jika tidak ada dokumen, query gagal diam-diam & fallback ke ikon default
+        // OTOMATIS TARIK URL DARI FIRESTORE JIKA BELUM ADA DI CACHE
         if (!userPhotoUrls.containsKey(user.nUserID)) {
             FirebaseFirestore db = FirebaseFirestore.getInstance();
             db.collection("pengguna")
@@ -1734,7 +1590,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
     // AKHIR BAGIAN 2
-// METHOD CHAT FINAL (DENGAN DETEKSI AVATAR URL DARI IMGBB)
+             // METHOD CHAT FINAL (MURNI TEAMTALK TANPA IMGBB)
     @Override
     public void onCmdUserTextMessage(TextMessage textmessage) {
         User sender; String name;
@@ -1742,26 +1598,6 @@ public class MainActivity extends AppCompatActivity
         
         switch (textmessage.nMsgType) {
             case TextMsgType.MSGTYPE_CHANNEL:
-                // CEK APAKAH INI PESAN UPDATE AVATAR DARI IMGBB
-                if (textmessage.szMessage != null && textmessage.szMessage.startsWith("AVATAR_URL:")) {
-                    try {
-                        String[] parts = textmessage.szMessage.split(":", 3);
-                        if (parts.length == 3) {
-                            int userId = Integer.parseInt(parts[1]);
-                            String url = parts[2];
-                            Log.d(TAG, "Menerima avatar URL dari user: " + userId);
-                            
-                            // Simpan ke cache & download via Glide
-                            userPhotoUrls.put(userId, url);
-                            downloadAndCacheAvatar(userId, url);
-                        }
-                    } catch (Exception e) { 
-                        Log.e(TAG, "Error parse avatar URL: " + e.getMessage()); 
-                    }
-                    break; // Jangan tampilkan sebagai chat text biasa
-                }
-                
-                // KODE CHAT BIASA TEAMTALK
                 accessibilityAssistant.lockEvents(); 
                 textmsgAdapter.notifyDataSetChanged(); 
                 accessibilityAssistant.unlockEvents();
@@ -1993,4 +1829,4 @@ public class MainActivity extends AppCompatActivity
         int sound = sounds.get(bVoiceActive ? SOUND_VOXON : SOUND_VOXOFF);
         if (sound != 0) audioIcons.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
     }
-} // <-- Penutup Class MainActivity
+} // <-- Penutup Class MainActivity   
