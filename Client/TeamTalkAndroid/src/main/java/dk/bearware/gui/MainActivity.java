@@ -80,9 +80,15 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -100,16 +106,7 @@ import android.graphics.ImageDecoder;
 import android.graphics.drawable.Drawable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-
-// Import OkHttp untuk upload ke 0x0.st
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.MediaType;
-import okhttp3.MultipartBody;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
+import android.util.Base64;
 
 // Import TeamTalk SDK
 import dk.bearware.Channel;
@@ -1270,8 +1267,8 @@ public class MainActivity extends AppCompatActivity
             btnSet.setOnClickListener(v -> showChannelPickerDialog());
         }
     }
-
-// === METHOD BARU: MENU PINDAH CHANNEL VIA TOMBOL SET ===
+    //ahir bagian satu
+   // === METHOD BARU: MENU PINDAH CHANNEL VIA TOMBOL SET ===
     private void showChannelPickerDialog() {
         Map<Integer, Channel> allChans = getService().getChannels();
         List<Channel> list = new ArrayList<>(allChans.values());
@@ -1303,69 +1300,86 @@ public class MainActivity extends AppCompatActivity
         startActivityForResult(intent, REQUEST_AVATAR_PICK);
     }
 
-    // ===== METHOD UPLOAD AVATAR KE 0X0.ST =====
+    // ===== METHOD UPLOAD AVATAR KE IMGBB =====
     private void processAndSendAvatar(Uri imageUri) {
-        try {
-            int myId = getClient().getMyUserID();
-            if (myId <= 0) return;
+        new Thread(() -> {
+            try {
+                int myId = getClient().getMyUserID();
+                if (myId <= 0) return;
 
-            Bitmap bitmap;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(getContentResolver(), imageUri));
-            } else {
-                bitmap = android.provider.MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
-            }
-            
-            Bitmap optimized = Bitmap.createScaledBitmap(bitmap, 256, 256, true);
-            AvatarHelper.saveAvatarToLocal(this, myId, optimized, false);
-            
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            optimized.compress(Bitmap.CompressFormat.PNG, 90, baos);
-            byte[] imageBytes = baos.toByteArray();
-            
-            Toast.makeText(this, "Sedang upload foto...", Toast.LENGTH_SHORT).show();
-            
-            OkHttpClient client = new OkHttpClient();
-            RequestBody requestBody = new MultipartBody.Builder()
-                .setType(MultipartBody.FORM)
-                .addFormDataPart("file", "avatar_" + myId + ".png", 
-                    RequestBody.create(imageBytes, MediaType.parse("image/png")))
-                .build();
+                // 1. Load & Resize Foto
+                Bitmap bitmap;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(getContentResolver(), imageUri));
+                } else {
+                    bitmap = android.provider.MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+                }
                 
-            Request request = new Request.Builder()
-                .url("https://0x0.st")
-                .post(requestBody)
-                .build();
+                // Resize ke 512x512 (ImgBB bisa handle ukuran ini dengan baik)
+                Bitmap optimized = Bitmap.createScaledBitmap(bitmap, 512, 512, true);
+                AvatarHelper.saveAvatarToLocal(MainActivity.this, myId, optimized, false);
                 
-            client.newCall(request).enqueue(new Callback() {
-                @Override
-                public void onFailure(Call call, IOException e) {
+                // Convert ke Base64 String
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                optimized.compress(Bitmap.CompressFormat.JPEG, 80, baos); // JPEG lebih kecil dari PNG
+                String base64Image = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+                
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Sedang upload...", Toast.LENGTH_SHORT).show());
+                
+                // 2. Upload ke ImgBB via POST Request Sederhana
+                // GANTI "MASUKKAN_API_KEY_IMG_BB_DISINI" DENGAN KEY KAMU
+                String apiKey = "MASUKKAN_API_KEY_IMG_BB_DISINI"; 
+                
+                String urlParams = "key=" + apiKey + "&image=" + base64Image;
+                byte[] postData = urlParams.getBytes(StandardCharsets.UTF_8);
+                
+                URL url = new URL("https://api.imgbb.com/1/upload");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setDoOutput(true);
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+                conn.setRequestProperty("Content-Length", String.valueOf(postData.length));
+                
+                DataOutputStream dos = new DataOutputStream(conn.getOutputStream());
+                dos.write(postData);
+                dos.flush();
+                dos.close();
+                
+                // 3. Baca Respon JSON
+                int code = conn.getResponseCode();
+                if (code == 200) {
+                    BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = in.readLine()) != null) response.append(line);
+                    in.close();
+                    
+                    // Parse JSON sederhana (ambil url_display)
+                    String jsonResponse = response.toString();
+                    // Cari "url":"https://..."
+                    int start = jsonResponse.indexOf("\"url\":\"") + 7;
+                    int end = jsonResponse.indexOf("\"", start);
+                    String imageUrl = jsonResponse.substring(start, end);
+                    
+                    Log.d(TAG, "ImgBB URL: " + imageUrl);
+                    broadcastAvatarUrl(imageUrl, myId);
+                    
+                    runOnUiThread(() -> {
+                        Toast.makeText(MainActivity.this, "Foto berhasil!", Toast.LENGTH_SHORT).show();
+                        channelsAdapter.notifyDataSetChanged();
+                    });
+                } else {
                     runOnUiThread(() -> Toast.makeText(MainActivity.this, 
-                        "Upload gagal: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                        "Gagal upload (" + code + ")", Toast.LENGTH_LONG).show());
                 }
+                conn.disconnect();
                 
-                @Override
-                public void onResponse(Call call, Response response) throws IOException {
-                    if (response.isSuccessful()) {
-                        String imageUrl = response.body().string().trim();
-                        Log.d(TAG, "Avatar URL: " + imageUrl);
-                        broadcastAvatarUrl(imageUrl, myId);
-                        
-                        runOnUiThread(() -> {
-                            Toast.makeText(MainActivity.this, "Foto berhasil diupdate!", Toast.LENGTH_SHORT).show();
-                            channelsAdapter.notifyDataSetChanged();
-                        });
-                    } else {
-                        runOnUiThread(() -> Toast.makeText(MainActivity.this, 
-                            "Upload ditolak server", Toast.LENGTH_LONG).show());
-                    }
-                }
-            });
-            
-        } catch (Exception e) {
-            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
-            e.printStackTrace();
-        }
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, 
+                    "Error: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                e.printStackTrace();
+            }
+        }).start();
     }
 
     private void broadcastAvatarUrl(String avatarUrl, int userId) {
@@ -1642,8 +1656,8 @@ public class MainActivity extends AppCompatActivity
             accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents();
         }
     }
-
-    // METHOD CHAT FINAL (DENGAN DETEKSI AVATAR URL)
+    //ahir bagian dua
+   // METHOD CHAT FINAL (DENGAN DETEKSI AVATAR URL)
     @Override
     public void onCmdUserTextMessage(TextMessage textmessage) {
         User sender; String name;
@@ -1651,7 +1665,7 @@ public class MainActivity extends AppCompatActivity
         
         switch (textmessage.nMsgType) {
             case TextMsgType.MSGTYPE_CHANNEL:
-                // CEK APAKAH INI PESAN UPDATE AVATAR DARI 0X0.ST
+                // CEK APAKAH INI PESAN UPDATE AVATAR DARI IMGBB
                 if (textmessage.szMessage != null && textmessage.szMessage.startsWith("AVATAR_URL:")) {
                     try {
                         String[] parts = textmessage.szMessage.split(":", 3);
