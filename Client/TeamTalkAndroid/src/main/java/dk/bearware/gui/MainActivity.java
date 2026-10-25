@@ -888,18 +888,23 @@ public class MainActivity extends AppCompatActivity
 
         @Override public View getView(int position, View convertView, ViewGroup parent) {
             int type = getItemViewType(position);
-            
+         
             if (type == HEADER_VIEW_TYPE) {
                 if (convertView == null || convertView.findViewById(R.id.parentname) == null)
                     convertView = inflater.inflate(R.layout.item_channel_back, parent, false); 
+                
                 TextView headerTitle = convertView.findViewById(R.id.parentname);
                 TextView headerTopic = convertView.findViewById(R.id.chantopic);
+                
                 if (curchannel != null) {
                     headerTitle.setText("CH " + curchannel.nChannelID + " • " + curchannel.szName);
                     headerTopic.setText(curchannel.szTopic);
+                    
+                    // TAMBAHKAN BARIS INI DI SINI:
+                    convertView.setOnLongClickListener(view -> onChannelItemLongClick(curchannel, view));
                 }
                 return convertView;
-            } 
+            }
             
             else if (type == USER_VIEW_TYPE) {
                 User user = (User) getItem(position);
