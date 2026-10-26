@@ -73,14 +73,6 @@ import androidx.fragment.app.ListFragment;
 import androidx.viewpager.widget.ViewPager;
 
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.engine.DiskCacheStrategy; // <--- TAMBAHKAN INI
-import com.bumptech.glide.load.engine.GlideException;
-import com.bumptech.glide.request.RequestListener;
-import com.bumptech.glide.request.target.CustomTarget;
-import com.bumptech.glide.request.target.Target;
-import com.bumptech.glide.request.transition.Transition;
-import com.bumptech.glide.load.DataSource;
-
 import com.google.android.material.tabs.TabLayout;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -96,14 +88,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Vector;
 import java.util.List;
-
-// Import Avatar & Bitmap
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.ImageDecoder;
-import android.graphics.drawable.Drawable; // <--- TAMBAHKAN BARIS INI KAWAN!
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 
 // Import TeamTalk SDK
 import dk.bearware.Channel;
@@ -145,7 +129,6 @@ import dk.bearware.data.TTSWrapper;
 import dk.bearware.data.TextMessageAdapter;
 import dk.bearware.events.ClientEventListener;
 import dk.bearware.utils.PrefsHelper;
-import dk.bearware.data.AvatarHelper;
 
 public class MainActivity extends AppCompatActivity
         implements TeamTalkConnectionListener, OnMenuItemClickListener, SensorEventListener,
@@ -193,9 +176,7 @@ public class MainActivity extends AppCompatActivity
     boolean isProximitySensorRegistered = false;
     Map<Integer, User> users = new HashMap<>();
     
-    // CACHE URL FOTO DARI FIRESTORE AGAR TIDAK QUERY BERULANG SAAT SCROLL
-    Map<Integer, String> userPhotoUrls = new HashMap<>(); 
-
+    // === PROFIL MANAGER YANG BERHASIL DI SCREENSHOT ===
     private UserProfileManager profileManager; 
 
     static final String MESSAGE_NOTIFICATION_TAG = "incoming_message";
@@ -224,7 +205,10 @@ public class MainActivity extends AppCompatActivity
         prefs = new PrefsHelper(ctx);
         mConnection = new TeamTalkConnection(this);
         setContentView(R.layout.activity_main);
+        
+        // INISIALISASI PROFILE MANAGER (KUNCI UTAMA)
         profileManager = new UserProfileManager();
+        
         EdgeToEdgeHelper.enableEdgeToEdge(this);
 
         String serverName = getIntent().getStringExtra(ServerEntry.KEY_SERVERNAME);
@@ -247,7 +231,8 @@ public class MainActivity extends AppCompatActivity
         wakeLock.setReferenceCounted(false);
         proximityWakeLock.setReferenceCounted(false);
 
-        channelsAdapter = new ChannelListAdapter(this.getBaseContext());
+        // ADAPTER KOMPLEKS DENGAN PROFILE MANAGER
+        channelsAdapter = new ChannelListAdapter(this.getBaseContext(), profileManager);
         filesAdapter = new FileListAdapter(this, this, accessibilityAssistant);
         textmsgAdapter = new TextMessageAdapter(this, accessibilityAssistant);
         mediaAdapter = new MediaAdapter(this.getBaseContext());
@@ -849,123 +834,187 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // ====== CHANNEL LIST ADAPTER (VERSI SINGLE CHANNEL FINAL + AUTO FIRESTORE AVATAR) ======
+    // ====== CHANNEL LIST ADAPTER KOMPLEKS (ADOPSI DARI CLASS SUKSES) ======
     class ChannelListAdapter extends BaseAdapter {
-        private static final int HEADER_VIEW_TYPE = 0;
-        private static final int USER_VIEW_TYPE = 1;
+        private static final int PARENT_CHANNEL_VIEW_TYPE = 0, CHANNEL_VIEW_TYPE = 1, USER_VIEW_TYPE = 2, INFO_VIEW_TYPE = 3, VIEW_TYPE_COUNT = 4;
         private final LayoutInflater inflater;
+        private final UserProfileManager profileManager; // Field Baru
+        
+        Vector<Channel> subchannels = new Vector<>();
+        Vector<Channel> stickychannels = new Vector<>();
         Vector<User> currentusers = new Vector<>();
 
-        ChannelListAdapter(Context context) { inflater = LayoutInflater.from(context); }
+        // Constructor Baru dengan ProfileManager
+        ChannelListAdapter(Context context, UserProfileManager mgr) {
+            inflater = LayoutInflater.from(context);
+            this.profileManager = mgr;
+        }
 
         @Override public void notifyDataSetChanged() {
-            currentusers.clear();
-            if(curchannel != null) currentusers = Utils.getUsers(curchannel.nChannelID, getService().getUsers());
+            subchannels.clear(); stickychannels.clear(); currentusers.clear();
+            int chanid = curchannel != null ? curchannel.nChannelID : getClient().getRootChannelID();
+            if(curchannel != null) {
+                subchannels = Utils.getSubChannels(chanid, getService().getChannels());
+                stickychannels = Utils.getStickyChannels(chanid, getService().getChannels());
+                currentusers = Utils.getUsers(chanid, getService().getUsers());
+            } else {
+                Channel root = getService().getChannels().get(chanid);
+                if(root != null) subchannels.add(root);
+            }
+            Collections.sort(subchannels, (c1, c2) -> c1.szName.compareToIgnoreCase(c2.szName));
+            Collections.sort(stickychannels, (c1, c2) -> c1.szName.compareToIgnoreCase(c2.szName));
             Collections.sort(currentusers, (u1, u2) -> {
                 if (prefs.get("movetalk_checkbox", true)) {
                     boolean v1 = (u1.uUserState & UserState.USERSTATE_VOICE) != 0;
                     boolean v2 = (u2.uUserState & UserState.USERSTATE_VOICE) != 0;
-                    if (v1 && !v2) return -1; 
-                    if (!v1 && v2) return 1;
+                    if (v1 && !v2) return -1; if (!v1 && v2) return 1;
                 }
                 return Utils.getDisplayName(getBaseContext(), u1).compareToIgnoreCase(Utils.getDisplayName(getBaseContext(), u2));
             });
             super.notifyDataSetChanged();
         }
 
-        @Override public int getCount() { return (curchannel != null ? 1 : 0) + currentusers.size(); }
+        @Override public int getCount() {
+            int count = currentusers.size() + subchannels.size() + stickychannels.size();
+            if ((curchannel != null) && (curchannel.nParentID > 0)) count++;
+            return count;
+        }
+
         @Override public Object getItem(int position) {
-            if (position == 0 && curchannel != null) return curchannel;
-            return currentusers.get(position - 1);
+            if (position < stickychannels.size()) return stickychannels.get(position);
+            position -= stickychannels.size();
+            if (position < currentusers.size()) return currentusers.get(position);
+            position -= currentusers.size();
+            if ((curchannel != null) && (curchannel.nParentID > 0)) {
+                if(position == 0) {
+                    Channel parent = getService().getChannels().get(curchannel.nParentID);
+                    return parent != null ? parent : new Channel();
+                }
+                position--; 
+            }
+            return subchannels.get(position);
         }
+
         @Override public long getItemId(int position) { return position; }
+
         @Override public int getItemViewType(int position) {
-            if (position == 0 && curchannel != null) return HEADER_VIEW_TYPE;
-            return USER_VIEW_TYPE;
+            if (position < stickychannels.size()) return INFO_VIEW_TYPE;
+            position -= stickychannels.size();
+            if (position < currentusers.size()) return USER_VIEW_TYPE;
+            position -= currentusers.size();
+            if ((curchannel != null) && (curchannel.nParentID > 0)) {
+                if (position == 0) return PARENT_CHANNEL_VIEW_TYPE;
+                position--; 
+            }
+            return CHANNEL_VIEW_TYPE;
         }
-        @Override public int getViewTypeCount() { return 2; }
+
+        @Override public int getViewTypeCount() { return VIEW_TYPE_COUNT; }
 
         @Override public View getView(int position, View convertView, ViewGroup parent) {
-            int type = getItemViewType(position);
-         
-            if (type == HEADER_VIEW_TYPE) {
-                if (convertView == null || convertView.findViewById(R.id.parentname) == null)
-                    convertView = inflater.inflate(R.layout.item_channel_back, parent, false); 
-                
-                TextView headerTitle = convertView.findViewById(R.id.parentname);
-                TextView headerTopic = convertView.findViewById(R.id.chantopic);
-                
-                if (curchannel != null) {
-                    headerTitle.setText("CH " + curchannel.nChannelID + " • " + curchannel.szName);
-                    headerTopic.setText(curchannel.szTopic);
-                    convertView.setOnLongClickListener(view -> onChannelItemLongClick(curchannel, view));
+            Object item = getItem(position);
+            if(item instanceof Channel channel) {
+                switch (getItemViewType(position)) {
+                    case PARENT_CHANNEL_VIEW_TYPE:
+                        if (convertView == null || convertView.findViewById(R.id.parentname) == null)
+                            convertView = inflater.inflate(R.layout.item_channel_back, parent, false);
+                        break;
+                    case CHANNEL_VIEW_TYPE:
+                        if (convertView == null || convertView.findViewById(R.id.channelname) == null)
+                            convertView = inflater.inflate(R.layout.item_channel, parent, false);
+                        ImageView chanicon = convertView.findViewById(R.id.channelicon);
+                        TextView name = convertView.findViewById(R.id.channelname);
+                        TextView topic = convertView.findViewById(R.id.chantopic);
+                        Button join = convertView.findViewById(R.id.join_btn);
+                        int icon_resource = channel.bPassword ? R.drawable.channel_pink : R.drawable.channel_orange;
+                        chanicon.setImageResource(icon_resource);
+                        chanicon.setContentDescription(channel.bPassword ? getString(R.string.text_passwdprot) : null);
+                        chanicon.setImportantForAccessibility(channel.bPassword ? View.IMPORTANT_FOR_ACCESSIBILITY_YES : View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                        if(channel.nParentID == 0) {
+                            ServerProperties srvprop = new ServerProperties();
+                            getClient().getServerProperties(srvprop);
+                            name.setText(srvprop.szServerName);
+                        } else name.setText(channel.szName);
+                        topic.setText(channel.szTopic);
+                        join.setOnClickListener(v -> { if (v.getId() == R.id.join_btn) joinChannel(channel); });
+                        join.setAccessibilityDelegate(accessibilityAssistant);
+                        join.setEnabled(channel.nChannelID != getClient().getMyChannelID());
+                        if (channel.nMaxUsers > 0) {
+                            int pop = Utils.getUsers(channel.nChannelID, getService().getUsers()).size();
+                            ((TextView)convertView.findViewById(R.id.population)).setText(pop > 0 ? String.format(Locale.ROOT, "(%d)", pop) : "");
+                        }
+                        break;
+                    case INFO_VIEW_TYPE:
+                        if (convertView == null || convertView.findViewById(R.id.titletext) == null)
+                            convertView = inflater.inflate(R.layout.item_info, parent, false);
+                        ((TextView)convertView.findViewById(R.id.titletext)).setText(channel.szName);
+                        ((TextView)convertView.findViewById(R.id.infodetails)).setText(channel.szTopic);
+                        break;
                 }
-                return convertView;
-            }
-            
-            else if (type == USER_VIEW_TYPE) {
-                User user = (User) getItem(position);
+            } else if(item instanceof User user) {
                 if (convertView == null || convertView.findViewById(R.id.nickname) == null)
                     convertView = inflater.inflate(R.layout.item_user, parent, false);
                 
                 ImageView usericon = convertView.findViewById(R.id.usericon);
                 TextView nickname = convertView.findViewById(R.id.nickname);
                 TextView status = convertView.findViewById(R.id.status);
-                
                 String name = Utils.getDisplayName(getBaseContext(), user);
                 nickname.setText(name);
                 status.setText(user.szStatusMsg);
                 
+                boolean selected = userIDS.contains(user.nUserID);
+                boolean isOperator = getClient().isChannelOperator(user.nUserID, user.nChannelID);
+                boolean isAdmin = (user.uUserType & UserType.USERTYPE_ADMIN) != 0;
                 boolean talking = (user.uUserState & UserState.USERSTATE_VOICE) != 0;
                 boolean female = (user.nStatusMode & TeamTalkConstants.STATUSMODE_FEMALE) != 0;
+                boolean neutral = (user.nStatusMode & TeamTalkConstants.STATUSMODE_NEUTRAL) != 0;
                 boolean away = (user.nStatusMode & TeamTalkConstants.STATUSMODE_AWAY) != 0;
+                
                 if(user.nUserID == getService().getTTInstance().getMyUserID()) talking = getService().isVoiceTransmitting();
                 
-                // === LOGIKA MURNI FIRESTORE URL (OTOMATIS) ===
-                String photoUrl = userPhotoUrls.get(user.nUserID);
-                
-                if (photoUrl != null && !photoUrl.isEmpty()) {
-                    Glide.with(inflater.getContext())
-                         .load(photoUrl)
-                         .circleCrop()
-                         .placeholder(getDefaultIconResource(user)) 
-                         .error(getDefaultIconResource(user))       
-                         .into(usericon);
-                } else {
-                    usericon.setImageResource(getDefaultIconResource(user));
-                }
+                int icon_resource;
+                if (talking) icon_resource = female ? R.drawable.woman_green : R.drawable.man_green;
+                else icon_resource = female ? (away ? R.drawable.woman_orange : R.drawable.woman_blue) : (away ? R.drawable.man_orange : R.drawable.man_blue);
 
+                String gender = female ? " 👩 " : neutral ? "  " : " 👨 ";
+                String desc = (selected ? getString(R.string.user_state_selected) : "") + " " + 
+                              (talking ? getString(R.string.user_state_now_speaking, name) : name) + gender + 
+                              (isOperator ? getString(R.string.user_state_operator) : "") + 
+                              (isAdmin ? getString(R.string.user_state_admin) : "");
+                nickname.setContentDescription(desc.trim());
+                status.setContentDescription(away ? getString(R.string.user_state_away) + " " + user.szStatusMsg : null);
+
+                // === LOGIKA FOTO PROFIL YANG SUDAH DIBERSIHKAN (ADOPSI PENUH) ===
+                boolean isMyself = (user.nUserID == getService().getTTInstance().getMyUserID());
+                if (isMyself) {
+                    FirebaseUser fbUser = FirebaseAuth.getInstance().getCurrentUser();
+                    if (fbUser != null && fbUser.getPhotoUrl() != null) {
+                        Glide.with(MainActivity.this).load(fbUser.getPhotoUrl()).circleCrop().placeholder(icon_resource).error(icon_resource).into(usericon);
+                    } else usericon.setImageResource(icon_resource);
+                } else {
+                    // INI KUNCINYA: Panggil Manager, tidak ada query Firestore di sini lagi!
+                    profileManager.loadAvatarByName(user.szNickname, usericon, icon_resource);
+                }
+                // ================================================
+
+                usericon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
                 Button sndmsg = convertView.findViewById(R.id.msg_btn);
-                if(sndmsg != null) {
-                    sndmsg.setOnClickListener(v -> {
+                sndmsg.setOnClickListener(v -> {
+                    if (v.getId() == R.id.msg_btn) {
                         Intent intent = new Intent(MainActivity.this, TextMessageActivity.class);
                         startActivity(intent.putExtra(TextMessageActivity.EXTRA_USERID, user.nUserID));
-                    });
-                }
-
-                convertView.setOnClickListener(view -> {
-                    Intent intent = new Intent(MainActivity.this, UserPropActivity.class);
-                    startActivityForResult(intent.putExtra(UserPropActivity.EXTRA_USERID, user.nUserID), REQUEST_EDITUSER);
+                    }
                 });
-
-                convertView.setOnLongClickListener(view -> onChannelItemLongClick(user, view));
-                
-                return convertView;
-            }
+                sndmsg.setAccessibilityDelegate(accessibilityAssistant);
+            } 
+            
+            convertView.setOnClickListener(view -> onChannelItemClick(item));
+            convertView.setOnLongClickListener(view -> onChannelItemLongClick(item, view));
+            convertView.setAccessibilityDelegate(accessibilityAssistant);
             return convertView;
         } 
     }
     // ==========================================================================
-
-    // HELPER METHOD KECIL UNTUK IKON DEFAULT
-    private int getDefaultIconResource(User u) {
-        boolean talking = (u.uUserState & UserState.USERSTATE_VOICE) != 0;
-        boolean female = (u.nStatusMode & TeamTalkConstants.STATUSMODE_FEMALE) != 0;
-        boolean away = (u.nStatusMode & TeamTalkConstants.STATUSMODE_AWAY) != 0;
-        if(talking) return female ? R.drawable.woman_green : R.drawable.man_green;
-        return female ? (away ? R.drawable.woman_orange : R.drawable.woman_blue) 
-                      : (away ? R.drawable.man_orange : R.drawable.man_blue);
-    }
 
     void createStatusTimer() {
         final TextView connection = findViewById(R.id.connectionstat_textview);
@@ -1265,6 +1314,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
     // AKHIR BAGIAN 1
+
 // === METHOD BARU: MENU PINDAH CHANNEL VIA TOMBOL SET ===
     private void showChannelPickerDialog() {
         Map<Integer, Channel> allChans = getService().getChannels();
@@ -1294,43 +1344,7 @@ public class MainActivity extends AppCompatActivity
         builder.setNegativeButton("Batal", null);
         builder.show();
     }
-
-    // Method download via Glide (Pure Firestore URL)
-private void downloadAndCacheAvatar(int userId, String url) {
-        // TEST: Pakai URL hardcoded dari screenshot kamu dulu
-        String testUrl = "https://lh3.googleusercontent.com/a/ACg8ocI9XH0X-7Sz944dkW6DUMDdy54Ql9Zeb2QB7hlN_oKxqSYmSY=s96-c";
-        
-        runOnUiThread(() -> Toast.makeText(MainActivity.this, 
-            "Mencoba load URL test...", Toast.LENGTH_SHORT).show());
-
-        Glide.with(getApplicationContext())
-            .asBitmap()
-            .load(testUrl) // Pakai URL test dulu
-            .override(256, 256) 
-            .centerCrop()
-            .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.ALL)
-            .into(new CustomTarget<Bitmap>() {
-                @Override
-                public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
-                    runOnUiThread(() -> Toast.makeText(MainActivity.this, 
-                        "BERHASIL LOAD GAMBAR!", Toast.LENGTH_LONG).show());
-                    
-                    AvatarHelper.saveAvatarToLocal(MainActivity.this, userId, resource, true);
-                    userPhotoUrls.put(userId, testUrl);
-                    runOnUiThread(() -> channelsAdapter.notifyDataSetChanged());
-                }
-
-                @Override
-                public void onLoadFailed(@Nullable Drawable errorDrawable) {
-                    runOnUiThread(() -> Toast.makeText(MainActivity.this, 
-                        "GAGAL LOAD GAMBAR! Cek koneksi/permission.", Toast.LENGTH_LONG).show());
-                }
-
-                @Override
-                public void onLoadCleared(@Nullable Drawable placeholder) {}
-            });
-    }
-    //====="==""==========
+    
     private void initializeTeamTalkService(TeamTalkService service) {
         this.users = new HashMap<>(service.getUsers());
         int mychanid = getClient().getMyChannelID();
@@ -1427,59 +1441,50 @@ private void downloadAndCacheAvatar(int userId, String url) {
 
     @Override public void onCmdProcessing(int cmdId, boolean complete) { if(complete) activecmds.remove(cmdId); }
 
-    // === SISTEM LOGIN FIREBASE (PONDASI UTAMA - TIDAK DIUBAH SAMA SEKALI) ===
+    // === SISTEM LOGIN FIREBASE ROBUST (ADOPSI DARI CLASS SUKSES) ===
     @Override
     public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
         textmsgAdapter.setMyUserID(my_userid);
-        syncProfileToFirestoreIfNeeded(my_userid);
-        // OTOMATIS TARIK URL AVATAR MILIK SENDIRI DARI FIRESTORE SAAT LOGIN
-        loadMyAvatarFromFirestore();
-    }
-
-    private void syncProfileToFirestoreIfNeeded(int teamtalkUserId) {
-        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
-        if (currentUser == null) { Log.e(TAG, "⚠️ User Firebase NULL saat login TeamTalk!"); return; }
-        String uid = currentUser.getUid();
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
-        db.collection("pengguna").document(uid).get()
-            .addOnSuccessListener(doc -> {
-                if (!doc.exists() || doc.getLong("teamtalk_id") == null) saveUserProfile(currentUser, teamtalkUserId);
-                else Log.d(TAG, "✅ Profil sudah ada, skip sinkronisasi");
-            })
-            .addOnFailureListener(e -> { Log.w(TAG, "Gagal cek profil, mencoba simpan: " + e.getMessage()); saveUserProfile(currentUser, teamtalkUserId); });
-    }
-
-    private void saveUserProfile(FirebaseUser user, int teamtalkUserId) {
-        Map<String, Object> dataLengkap = new HashMap<>();
-        dataLengkap.put("displayName", user.getDisplayName() != null ? user.getDisplayName() : "User");
-        dataLengkap.put("email", user.getEmail());
-        dataLengkap.put("foto_profil_url", user.getPhotoUrl() != null ? user.getPhotoUrl().toString() : "");
-        dataLengkap.put("teamtalk_id", teamtalkUserId);
-        dataLengkap.put("lastLogin", System.currentTimeMillis());
-        FirebaseFirestore.getInstance().collection("pengguna").document(user.getUid()).set(dataLengkap)
-            .addOnSuccessListener(aVoid -> Log.d(TAG, "✅ Data profil berhasil disimpan untuk UID: " + user.getUid()))
-            .addOnFailureListener(e -> Log.e(TAG, "❌ Gagal simpan profil: " + e.getMessage()));
-    }
-
-    // Tarik URL avatar dari Firestore setelah login (Otomatis tanpa upload)
-    private void loadMyAvatarFromFirestore() {
-        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
-        if (currentUser == null) return;
         
-        FirebaseFirestore.getInstance()
-            .collection("pengguna")
-            .document(currentUser.getUid())
-            .get()
-            .addOnSuccessListener(doc -> {
-                if (doc.exists()) {
-                    String url = doc.getString("foto_profil_url");
-                    if (url != null && !url.isEmpty()) {
-                        int myId = getClient().getMyUserID();
-                        userPhotoUrls.put(myId, url);
-                        downloadAndCacheAvatar(myId, url);
-                    }
-                }
-            });
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser != null) {
+            FirebaseFirestore db = FirebaseFirestore.getInstance();
+            String uid = currentUser.getUid(); // Ambil UID dulu
+            
+            // Cari dokumen berdasarkan Email (FALLBACK AMAN)
+            db.collection("pengguna")
+              .whereEqualTo("email", currentUser.getEmail()) 
+              .limit(1)
+              .get()
+              .addOnSuccessListener(querySnapshot -> {
+                  Map<String, Object> updates = new HashMap<>();
+                  updates.put("teamtalk_id", my_userid);
+                  updates.put("lastLogin", System.currentTimeMillis());
+                  
+                  if (!querySnapshot.isEmpty()) {
+                      // ✅ DOKUMEN ADA: Update saja
+                      String docId = querySnapshot.getDocuments().get(0).getId();
+                      db.collection("pengguna").document(docId)
+                        .update(updates)
+                        .addOnSuccessListener(a -> Log.d(TAG, "TeamTalk ID diupdate: " + my_userid))
+                        .addOnFailureListener(e -> Log.e(TAG, "Gagal update: " + e.getMessage()));
+                        
+                  } else {
+                      // ✅ DOKUMEN TIDAK ADA: Buat BARU dengan ID = UID
+                      updates.put("foto_profil_url", currentUser.getPhotoUrl() != null ? 
+                                   currentUser.getPhotoUrl().toString() : "");
+                      updates.put("email", currentUser.getEmail());
+                      updates.put("displayName", currentUser.getDisplayName() != null ? 
+                                   currentUser.getDisplayName() : "Unknown");
+                      
+                      // GUNAKAN set() DENGAN UID SEBAGAI ID DOKUMEN
+                      db.collection("pengguna").document(uid)
+                        .set(updates)
+                        .addOnSuccessListener(a -> Log.d(TAG, "Dokumen baru dibuat dengan UID: " + uid))
+                        .addOnFailureListener(e -> Log.e(TAG, "Gagal buat dokumen: " + e.getMessage()));
+                  }
+              });
+        }
     }
     // ==========================================================
 
@@ -1509,56 +1514,9 @@ private void downloadAndCacheAvatar(int userId, String url) {
         }
     }
 
-    // METHOD UPDATE USER (OTOMATIS CEK FIRESTORE URL)
-  @Override
+    // METHOD UPDATE USER SEDERHANA (TIDAK ADA QUERY DI SINI, SERAHKAN KE PROFILE MANAGER)
+    @Override
     public void onCmdUserUpdate(User user) {
-        // PRIORITAS 1: Cek Storage Lokal Dulu (Super Cepat)
-        Bitmap localBitmap = AvatarHelper.getAvatarFromLocal(getApplicationContext(), user.nUserID);
-        if (localBitmap != null) {
-            // Sudah punya foto lokal, masukkan ke cache RAM dan tampilkan
-            // Kita butuh URL untuk cache RAM, tapi kalau belum ada, biarkan null dulu
-            // atau ambil dari dokumen Firestore sekali saja lalu simpan di SharedPrefs
-            if (!userPhotoUrls.containsKey(user.nUserID)) {
-                 // Opsional: Ambil URL dari Firestore SEKALI SAJA lalu simpan di SharedPreferences
-                 // Agar next restart tidak perlu query lagi
-            }
-            runOnUiThread(() -> channelsAdapter.notifyDataSetChanged());
-            
-            // Lanjutkan logika asli TeamTalk
-            if(curchannel != null && curchannel.nChannelID == user.nChannelID) {
-                accessibilityAssistant.lockEvents();
-                channelsAdapter.notifyDataSetChanged();
-                accessibilityAssistant.unlockEvents();
-            }
-            subscriptionChange(user);
-            users.put(user.nUserID, user);
-            accessibilityAssistant.lockEvents();
-            textmsgAdapter.notifyDataSetChanged();
-            accessibilityAssistant.unlockEvents();
-            return; // STOP DI SINI, TIDAK PERLU QUERY FIRESTORE
-        }
-
-        // PRIORITAS 2: Hanya query Firestore JIKA TIDAK ADA DI LOKAL
-        if (!userPhotoUrls.containsKey(user.nUserID)) {
-            FirebaseFirestore db = FirebaseFirestore.getInstance();
-            long ttId = (long) user.nUserID; 
-            
-            db.collection("pengguna")
-              .whereEqualTo("teamtalk_id", ttId) 
-              .limit(1)
-              .get()
-              .addOnSuccessListener(query -> {
-                  if (!query.isEmpty()) {
-                      String url = query.getDocuments().get(0).getString("foto_profil_url");
-                      if (url != null && !url.isEmpty()) {
-                          userPhotoUrls.put(user.nUserID, url);
-                          downloadAndCacheAvatar(user.nUserID, url); // Ini akan save ke lokal
-                      }
-                  }
-              });
-        }
-
-        // LOGIKA ASLI TEAMTALK TETAP JALAN
         if(curchannel != null && curchannel.nChannelID == user.nChannelID) {
             accessibilityAssistant.lockEvents();
             channelsAdapter.notifyDataSetChanged();
@@ -1639,7 +1597,8 @@ private void downloadAndCacheAvatar(int userId, String url) {
         }
     }
     // AKHIR BAGIAN 2
-             // METHOD CHAT FINAL (MURNI TEAMTALK TANPA IMGBB)
+
+// METHOD CHAT FINAL (MURNI TEAMTALK)
     @Override
     public void onCmdUserTextMessage(TextMessage textmessage) {
         User sender; String name;
@@ -1761,8 +1720,7 @@ private void downloadAndCacheAvatar(int userId, String url) {
     }
 
     @Override
-    public void onCmdChannelUpdate(Channel channel) {
-        if (curchannel != null && curchannel.nChannelID == channel.nParentID) {
+    public void onCmdChannelUpdate(Channel channel) {if (curchannel != null && curchannel.nChannelID == channel.nParentID) {
             accessibilityAssistant.lockEvents(); 
             channelsAdapter.notifyDataSetChanged(); 
             accessibilityAssistant.unlockEvents();
@@ -1878,4 +1836,4 @@ private void downloadAndCacheAvatar(int userId, String url) {
         int sound = sounds.get(bVoiceActive ? SOUND_VOXON : SOUND_VOXOFF);
         if (sound != 0) audioIcons.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
     }
-} // <-- Penutup Class MainActivity   
+} // <-- Penutup Class MainActivity
