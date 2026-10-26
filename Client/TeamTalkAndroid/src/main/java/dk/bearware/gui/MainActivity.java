@@ -893,7 +893,7 @@ public class MainActivity extends AppCompatActivity
                 return convertView;
             }
             
-        else if (type == USER_VIEW_TYPE) {
+          else if (type == USER_VIEW_TYPE) {
                 User user = (User) getItem(position);
                 if (convertView == null || convertView.findViewById(R.id.nickname) == null)
                     convertView = inflater.inflate(R.layout.item_user, parent, false);
@@ -947,6 +947,7 @@ public class MainActivity extends AppCompatActivity
                 convertView.setOnLongClickListener(view -> onChannelItemLongClick(user, view));
                 
                 return convertView;
+            }
             }
     // ==========================================================================
 
