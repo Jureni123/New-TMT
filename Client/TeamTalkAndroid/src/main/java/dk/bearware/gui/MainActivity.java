@@ -893,7 +893,7 @@ public class MainActivity extends AppCompatActivity
                 return convertView;
             }
             
-          else if (type == USER_VIEW_TYPE) {
+         else if (type == USER_VIEW_TYPE) {
                 User user = (User) getItem(position);
                 if (convertView == null || convertView.findViewById(R.id.nickname) == null)
                     convertView = inflater.inflate(R.layout.item_user, parent, false);
@@ -916,7 +916,6 @@ public class MainActivity extends AppCompatActivity
                 else icon_resource = female ? (away ? R.drawable.woman_orange : R.drawable.woman_blue) : (away ? R.drawable.man_orange : R.drawable.man_blue);
 
                 // === PERBAIKAN ANTI FOTO KEMBAR ===
-                // 1. RESET ICON KE DEFAULT DULU SEBELUM LOAD FOTO BARU
                 usericon.setImageResource(icon_resource); 
                 
                 boolean isMyself = (user.nUserID == getService().getTTInstance().getMyUserID());
@@ -926,7 +925,6 @@ public class MainActivity extends AppCompatActivity
                         Glide.with(MainActivity.this).load(fbUser.getPhotoUrl()).circleCrop().placeholder(icon_resource).error(icon_resource).into(usericon);
                     }
                 } else {
-                    // 2. PANGGIL MANAGER DENGAN PLACEHOLDER YANG JELAS
                     profileManager.loadAvatarByName(user.szNickname, usericon, icon_resource);
                 }
                 // ================================================
@@ -947,8 +945,11 @@ public class MainActivity extends AppCompatActivity
                 convertView.setOnLongClickListener(view -> onChannelItemLongClick(user, view));
                 
                 return convertView;
-            }
-            }
+            } 
+            // HAPUS KURUNG TUTUP YANG NYASAR DI SINI SEBELUMNYA
+        } // <-- INI PENUTUP METHOD getView YANG BENAR
+    } // <-- INI PENUTUP CLASS ChannelListAdapter
+    // ==========================================================================
     // ==========================================================================
 
     void createStatusTimer() {
@@ -1771,4 +1772,4 @@ public class MainActivity extends AppCompatActivity
         int sound = sounds.get(bVoiceActive ? SOUND_VOXON : SOUND_VOXOFF);
         if (sound != 0) audioIcons.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
     }
-} // <-- Penutup Class MainActivity
+} // <-- Penutup Class MainActivity;
