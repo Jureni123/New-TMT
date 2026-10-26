@@ -62,7 +62,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
@@ -231,7 +230,7 @@ public class MainActivity extends AppCompatActivity
         wakeLock.setReferenceCounted(false);
         proximityWakeLock.setReferenceCounted(false);
 
-        // ADAPTER KOMPLEKS DENGAN PROFILE MANAGER
+        // ADAPTER SINGLE CHANNEL DENGAN PROFILE MANAGER
         channelsAdapter = new ChannelListAdapter(this.getBaseContext(), profileManager);
         filesAdapter = new FileListAdapter(this, this, accessibilityAssistant);
         textmsgAdapter = new TextMessageAdapter(this, accessibilityAssistant);
@@ -834,157 +833,89 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // ====== CHANNEL LIST ADAPTER KOMPLEKS (ADOPSI DARI CLASS SUKSES) ======
+    // ====== CHANNEL LIST ADAPTER (SINGLE CHANNEL + PROFILE MANAGER) ======
     class ChannelListAdapter extends BaseAdapter {
-        private static final int PARENT_CHANNEL_VIEW_TYPE = 0, CHANNEL_VIEW_TYPE = 1, USER_VIEW_TYPE = 2, INFO_VIEW_TYPE = 3, VIEW_TYPE_COUNT = 4;
+        private static final int HEADER_VIEW_TYPE = 0;
+        private static final int USER_VIEW_TYPE = 1;
         private final LayoutInflater inflater;
-        private final UserProfileManager profileManager; // Field Baru
-        
-        Vector<Channel> subchannels = new Vector<>();
-        Vector<Channel> stickychannels = new Vector<>();
+        private final UserProfileManager profileManager; 
         Vector<User> currentusers = new Vector<>();
 
-        // Constructor Baru dengan ProfileManager
+        // Constructor dengan ProfileManager
         ChannelListAdapter(Context context, UserProfileManager mgr) {
             inflater = LayoutInflater.from(context);
             this.profileManager = mgr;
         }
 
         @Override public void notifyDataSetChanged() {
-            subchannels.clear(); stickychannels.clear(); currentusers.clear();
-            int chanid = curchannel != null ? curchannel.nChannelID : getClient().getRootChannelID();
-            if(curchannel != null) {
-                subchannels = Utils.getSubChannels(chanid, getService().getChannels());
-                stickychannels = Utils.getStickyChannels(chanid, getService().getChannels());
-                currentusers = Utils.getUsers(chanid, getService().getUsers());
-            } else {
-                Channel root = getService().getChannels().get(chanid);
-                if(root != null) subchannels.add(root);
-            }
-            Collections.sort(subchannels, (c1, c2) -> c1.szName.compareToIgnoreCase(c2.szName));
-            Collections.sort(stickychannels, (c1, c2) -> c1.szName.compareToIgnoreCase(c2.szName));
+            currentusers.clear();
+            if(curchannel != null) currentusers = Utils.getUsers(curchannel.nChannelID, getService().getUsers());
             Collections.sort(currentusers, (u1, u2) -> {
                 if (prefs.get("movetalk_checkbox", true)) {
                     boolean v1 = (u1.uUserState & UserState.USERSTATE_VOICE) != 0;
                     boolean v2 = (u2.uUserState & UserState.USERSTATE_VOICE) != 0;
-                    if (v1 && !v2) return -1; if (!v1 && v2) return 1;
+                    if (v1 && !v2) return -1; 
+                    if (!v1 && v2) return 1;
                 }
                 return Utils.getDisplayName(getBaseContext(), u1).compareToIgnoreCase(Utils.getDisplayName(getBaseContext(), u2));
             });
             super.notifyDataSetChanged();
         }
 
-        @Override public int getCount() {
-            int count = currentusers.size() + subchannels.size() + stickychannels.size();
-            if ((curchannel != null) && (curchannel.nParentID > 0)) count++;
-            return count;
-        }
-
+        @Override public int getCount() { return (curchannel != null ? 1 : 0) + currentusers.size(); }
         @Override public Object getItem(int position) {
-            if (position < stickychannels.size()) return stickychannels.get(position);
-            position -= stickychannels.size();
-            if (position < currentusers.size()) return currentusers.get(position);
-            position -= currentusers.size();
-            if ((curchannel != null) && (curchannel.nParentID > 0)) {
-                if(position == 0) {
-                    Channel parent = getService().getChannels().get(curchannel.nParentID);
-                    return parent != null ? parent : new Channel();
-                }
-                position--; 
-            }
-            return subchannels.get(position);
+            if (position == 0 && curchannel != null) return curchannel;
+            return currentusers.get(position - 1);
         }
-
         @Override public long getItemId(int position) { return position; }
-
         @Override public int getItemViewType(int position) {
-            if (position < stickychannels.size()) return INFO_VIEW_TYPE;
-            position -= stickychannels.size();
-            if (position < currentusers.size()) return USER_VIEW_TYPE;
-            position -= currentusers.size();
-            if ((curchannel != null) && (curchannel.nParentID > 0)) {
-                if (position == 0) return PARENT_CHANNEL_VIEW_TYPE;
-                position--; 
-            }
-            return CHANNEL_VIEW_TYPE;
+            if (position == 0 && curchannel != null) return HEADER_VIEW_TYPE;
+            return USER_VIEW_TYPE;
         }
-
-        @Override public int getViewTypeCount() { return VIEW_TYPE_COUNT; }
+        @Override public int getViewTypeCount() { return 2; }
 
         @Override public View getView(int position, View convertView, ViewGroup parent) {
-            Object item = getItem(position);
-            if(item instanceof Channel channel) {
-                switch (getItemViewType(position)) {
-                    case PARENT_CHANNEL_VIEW_TYPE:
-                        if (convertView == null || convertView.findViewById(R.id.parentname) == null)
-                            convertView = inflater.inflate(R.layout.item_channel_back, parent, false);
-                        break;
-                    case CHANNEL_VIEW_TYPE:
-                        if (convertView == null || convertView.findViewById(R.id.channelname) == null)
-                            convertView = inflater.inflate(R.layout.item_channel, parent, false);
-                        ImageView chanicon = convertView.findViewById(R.id.channelicon);
-                        TextView name = convertView.findViewById(R.id.channelname);
-                        TextView topic = convertView.findViewById(R.id.chantopic);
-                        Button join = convertView.findViewById(R.id.join_btn);
-                        int icon_resource = channel.bPassword ? R.drawable.channel_pink : R.drawable.channel_orange;
-                        chanicon.setImageResource(icon_resource);
-                        chanicon.setContentDescription(channel.bPassword ? getString(R.string.text_passwdprot) : null);
-                        chanicon.setImportantForAccessibility(channel.bPassword ? View.IMPORTANT_FOR_ACCESSIBILITY_YES : View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-                        if(channel.nParentID == 0) {
-                            ServerProperties srvprop = new ServerProperties();
-                            getClient().getServerProperties(srvprop);
-                            name.setText(srvprop.szServerName);
-                        } else name.setText(channel.szName);
-                        topic.setText(channel.szTopic);
-                        join.setOnClickListener(v -> { if (v.getId() == R.id.join_btn) joinChannel(channel); });
-                        join.setAccessibilityDelegate(accessibilityAssistant);
-                        join.setEnabled(channel.nChannelID != getClient().getMyChannelID());
-                        if (channel.nMaxUsers > 0) {
-                            int pop = Utils.getUsers(channel.nChannelID, getService().getUsers()).size();
-                            ((TextView)convertView.findViewById(R.id.population)).setText(pop > 0 ? String.format(Locale.ROOT, "(%d)", pop) : "");
-                        }
-                        break;
-                    case INFO_VIEW_TYPE:
-                        if (convertView == null || convertView.findViewById(R.id.titletext) == null)
-                            convertView = inflater.inflate(R.layout.item_info, parent, false);
-                        ((TextView)convertView.findViewById(R.id.titletext)).setText(channel.szName);
-                        ((TextView)convertView.findViewById(R.id.infodetails)).setText(channel.szTopic);
-                        break;
+            int type = getItemViewType(position);
+         
+            if (type == HEADER_VIEW_TYPE) {
+                if (convertView == null || convertView.findViewById(R.id.parentname) == null)
+                    convertView = inflater.inflate(R.layout.item_channel_back, parent, false); 
+                
+                TextView headerTitle = convertView.findViewById(R.id.parentname);
+                TextView headerTopic = convertView.findViewById(R.id.chantopic);
+                
+                if (curchannel != null) {
+                    headerTitle.setText("CH " + curchannel.nChannelID + " • " + curchannel.szName);
+                    headerTopic.setText(curchannel.szTopic);
+                    // MENU EDIT/HAPUS CHANNEL KEMBALI AKTIF DI SINI
+                    convertView.setOnLongClickListener(view -> onChannelItemLongClick(curchannel, view));
                 }
-            } else if(item instanceof User user) {
+                return convertView;
+            }
+            
+            else if (type == USER_VIEW_TYPE) {
+                User user = (User) getItem(position);
                 if (convertView == null || convertView.findViewById(R.id.nickname) == null)
                     convertView = inflater.inflate(R.layout.item_user, parent, false);
                 
                 ImageView usericon = convertView.findViewById(R.id.usericon);
                 TextView nickname = convertView.findViewById(R.id.nickname);
                 TextView status = convertView.findViewById(R.id.status);
+                
                 String name = Utils.getDisplayName(getBaseContext(), user);
                 nickname.setText(name);
                 status.setText(user.szStatusMsg);
                 
-                boolean selected = userIDS.contains(user.nUserID);
-                boolean isOperator = getClient().isChannelOperator(user.nUserID, user.nChannelID);
-                boolean isAdmin = (user.uUserType & UserType.USERTYPE_ADMIN) != 0;
                 boolean talking = (user.uUserState & UserState.USERSTATE_VOICE) != 0;
                 boolean female = (user.nStatusMode & TeamTalkConstants.STATUSMODE_FEMALE) != 0;
-                boolean neutral = (user.nStatusMode & TeamTalkConstants.STATUSMODE_NEUTRAL) != 0;
                 boolean away = (user.nStatusMode & TeamTalkConstants.STATUSMODE_AWAY) != 0;
-                
                 if(user.nUserID == getService().getTTInstance().getMyUserID()) talking = getService().isVoiceTransmitting();
                 
                 int icon_resource;
                 if (talking) icon_resource = female ? R.drawable.woman_green : R.drawable.man_green;
                 else icon_resource = female ? (away ? R.drawable.woman_orange : R.drawable.woman_blue) : (away ? R.drawable.man_orange : R.drawable.man_blue);
 
-                String gender = female ? " 👩 " : neutral ? "  " : " 👨 ";
-                String desc = (selected ? getString(R.string.user_state_selected) : "") + " " + 
-                              (talking ? getString(R.string.user_state_now_speaking, name) : name) + gender + 
-                              (isOperator ? getString(R.string.user_state_operator) : "") + 
-                              (isAdmin ? getString(R.string.user_state_admin) : "");
-                nickname.setContentDescription(desc.trim());
-                status.setContentDescription(away ? getString(R.string.user_state_away) + " " + user.szStatusMsg : null);
-
-                // === LOGIKA FOTO PROFIL YANG SUDAH DIBERSIHKAN (ADOPSI PENUH) ===
+                // === LOGIKA FOTO PROFIL (ADOPSI DARI CLASS SUKSES) ===
                 boolean isMyself = (user.nUserID == getService().getTTInstance().getMyUserID());
                 if (isMyself) {
                     FirebaseUser fbUser = FirebaseAuth.getInstance().getCurrentUser();
@@ -992,25 +923,29 @@ public class MainActivity extends AppCompatActivity
                         Glide.with(MainActivity.this).load(fbUser.getPhotoUrl()).circleCrop().placeholder(icon_resource).error(icon_resource).into(usericon);
                     } else usericon.setImageResource(icon_resource);
                 } else {
-                    // INI KUNCINYA: Panggil Manager, tidak ada query Firestore di sini lagi!
+                    // INI KUNCINYA: Panggil Manager agar foto user lain muncul instan
                     profileManager.loadAvatarByName(user.szNickname, usericon, icon_resource);
                 }
                 // ================================================
 
-                usericon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
                 Button sndmsg = convertView.findViewById(R.id.msg_btn);
-                sndmsg.setOnClickListener(v -> {
-                    if (v.getId() == R.id.msg_btn) {
+                if(sndmsg != null) {
+                    sndmsg.setOnClickListener(v -> {
                         Intent intent = new Intent(MainActivity.this, TextMessageActivity.class);
                         startActivity(intent.putExtra(TextMessageActivity.EXTRA_USERID, user.nUserID));
-                    }
+                    });
+                }
+
+                convertView.setOnClickListener(view -> {
+                    Intent intent = new Intent(MainActivity.this, UserPropActivity.class);
+                    startActivityForResult(intent.putExtra(UserPropActivity.EXTRA_USERID, user.nUserID), REQUEST_EDITUSER);
                 });
-                sndmsg.setAccessibilityDelegate(accessibilityAssistant);
-            } 
-            
-            convertView.setOnClickListener(view -> onChannelItemClick(item));
-            convertView.setOnLongClickListener(view -> onChannelItemLongClick(item, view));
-            convertView.setAccessibilityDelegate(accessibilityAssistant);
+
+                // LONG CLICK USER JUGA TETAP ADA
+                convertView.setOnLongClickListener(view -> onChannelItemLongClick(user, view));
+                
+                return convertView;
+            }
             return convertView;
         } 
     }
@@ -1314,7 +1249,6 @@ public class MainActivity extends AppCompatActivity
         }
     }
     // AKHIR BAGIAN 1
-
 // === METHOD BARU: MENU PINDAH CHANNEL VIA TOMBOL SET ===
     private void showChannelPickerDialog() {
         Map<Integer, Channel> allChans = getService().getChannels();
@@ -1597,7 +1531,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
     // AKHIR BAGIAN 2
-
+    
 // METHOD CHAT FINAL (MURNI TEAMTALK)
     @Override
     public void onCmdUserTextMessage(TextMessage textmessage) {
@@ -1720,7 +1654,8 @@ public class MainActivity extends AppCompatActivity
     }
 
     @Override
-    public void onCmdChannelUpdate(Channel channel) {if (curchannel != null && curchannel.nChannelID == channel.nParentID) {
+    public void onCmdChannelUpdate(Channel channel) {
+        if (curchannel != null && curchannel.nChannelID == channel.nParentID) {
             accessibilityAssistant.lockEvents(); 
             channelsAdapter.notifyDataSetChanged(); 
             accessibilityAssistant.unlockEvents();
