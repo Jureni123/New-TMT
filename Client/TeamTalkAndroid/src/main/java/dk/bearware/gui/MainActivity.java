@@ -1277,7 +1277,7 @@ public class MainActivity extends AppCompatActivity
             Channel c = list.get(i);
             boolean isActive = (getClient().getMyChannelID() == c.nChannelID);
             if (c.nChannelID == getClient().getRootChannelID()) {
-                names[i] = "🏠 [ROOT] " + c.szName + (isActive ? " (Aktif)" : "");
+                names[i] = "🏠 [BERANDA] " + c.szName + (isActive ? " (Aktif)" : "");
             } else {
                 names[i] = c.szName + (isActive ? " (Aktif)" : "");
             }
@@ -1296,46 +1296,41 @@ public class MainActivity extends AppCompatActivity
     }
 
     // Method download via Glide (Pure Firestore URL)
- // Method download via Glide (Pure Firestore URL)
-    private void downloadAndCacheAvatar(int userId, String url) {
-        // Cek dulu apakah sudah ada di storage lokal sebelum download ulang
-        Bitmap localBitmap = AvatarHelper.getAvatarFromLocal(getApplicationContext(), userId);
-        if (localBitmap != null) {
-            // Sudah ada di lokal, langsung pakai! Tidak perlu query/download lagi
-            userPhotoUrls.put(userId, url); // Update cache RAM juga
-            runOnUiThread(() -> channelsAdapter.notifyDataSetChanged());
-            return;
-        }
+private void downloadAndCacheAvatar(int userId, String url) {
+        // TEST: Pakai URL hardcoded dari screenshot kamu dulu
+        String testUrl = "https://lh3.googleusercontent.com/a/ACg8ocI9XH0X-7Sz944dkW6DUMDdy54Ql9Zeb2QB7hlN_oKxqSYmSY=s96-c";
+        
+        runOnUiThread(() -> Toast.makeText(MainActivity.this, 
+            "Mencoba load URL test...", Toast.LENGTH_SHORT).show());
 
-        // Baru download jika belum ada di lokal
         Glide.with(getApplicationContext())
             .asBitmap()
-            .load(url)
+            .load(testUrl) // Pakai URL test dulu
             .override(256, 256) 
             .centerCrop()
-            .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.ALL) // Gunakan nama lengkap agar pasti terbaca
+            .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.ALL)
             .into(new CustomTarget<Bitmap>() {
                 @Override
                 public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
-                    // SIMPAN KE LOKAL DENGAN FORCE
-                    // PERBAIKAN 1: Hapus 'boolean saved =' karena AvatarHelper mengembalikan void
-                    AvatarHelper.saveAvatarToLocal(MainActivity.this, userId, resource, true); 
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, 
+                        "BERHASIL LOAD GAMBAR!", Toast.LENGTH_LONG).show());
                     
-                    Log.d(TAG, "Avatar saved locally for user: " + userId);
-                    
-                    userPhotoUrls.put(userId, url);
+                    AvatarHelper.saveAvatarToLocal(MainActivity.this, userId, resource, true);
+                    userPhotoUrls.put(userId, testUrl);
                     runOnUiThread(() -> channelsAdapter.notifyDataSetChanged());
                 }
 
                 @Override
                 public void onLoadFailed(@Nullable Drawable errorDrawable) {
-                    Log.e(TAG, "Glide failed to load avatar for user: " + userId + " URL: " + url);
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, 
+                        "GAGAL LOAD GAMBAR! Cek koneksi/permission.", Toast.LENGTH_LONG).show());
                 }
 
                 @Override
                 public void onLoadCleared(@Nullable Drawable placeholder) {}
             });
     }
+    //====="==""==========
     private void initializeTeamTalkService(TeamTalkService service) {
         this.users = new HashMap<>(service.getUsers());
         int mychanid = getClient().getMyChannelID();
