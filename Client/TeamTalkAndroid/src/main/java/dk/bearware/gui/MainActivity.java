@@ -893,7 +893,7 @@ public class MainActivity extends AppCompatActivity
                 return convertView;
             }
             
-            else if (type == USER_VIEW_TYPE) {
+        else if (type == USER_VIEW_TYPE) {
                 User user = (User) getItem(position);
                 if (convertView == null || convertView.findViewById(R.id.nickname) == null)
                     convertView = inflater.inflate(R.layout.item_user, parent, false);
@@ -915,15 +915,18 @@ public class MainActivity extends AppCompatActivity
                 if (talking) icon_resource = female ? R.drawable.woman_green : R.drawable.man_green;
                 else icon_resource = female ? (away ? R.drawable.woman_orange : R.drawable.woman_blue) : (away ? R.drawable.man_orange : R.drawable.man_blue);
 
-                // === LOGIKA FOTO PROFIL (ADOPSI DARI CLASS SUKSES) ===
+                // === PERBAIKAN ANTI FOTO KEMBAR ===
+                // 1. RESET ICON KE DEFAULT DULU SEBELUM LOAD FOTO BARU
+                usericon.setImageResource(icon_resource); 
+                
                 boolean isMyself = (user.nUserID == getService().getTTInstance().getMyUserID());
                 if (isMyself) {
                     FirebaseUser fbUser = FirebaseAuth.getInstance().getCurrentUser();
                     if (fbUser != null && fbUser.getPhotoUrl() != null) {
                         Glide.with(MainActivity.this).load(fbUser.getPhotoUrl()).circleCrop().placeholder(icon_resource).error(icon_resource).into(usericon);
-                    } else usericon.setImageResource(icon_resource);
+                    }
                 } else {
-                    // INI KUNCINYA: Panggil Manager agar foto user lain muncul instan
+                    // 2. PANGGIL MANAGER DENGAN PLACEHOLDER YANG JELAS
                     profileManager.loadAvatarByName(user.szNickname, usericon, icon_resource);
                 }
                 // ================================================
@@ -941,14 +944,10 @@ public class MainActivity extends AppCompatActivity
                     startActivityForResult(intent.putExtra(UserPropActivity.EXTRA_USERID, user.nUserID), REQUEST_EDITUSER);
                 });
 
-                // LONG CLICK USER JUGA TETAP ADA
                 convertView.setOnLongClickListener(view -> onChannelItemLongClick(user, view));
                 
                 return convertView;
             }
-            return convertView;
-        } 
-    }
     // ==========================================================================
 
     void createStatusTimer() {
