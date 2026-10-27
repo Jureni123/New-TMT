@@ -944,13 +944,14 @@ public class MainActivity extends AppCompatActivity
 
                 convertView.setOnLongClickListener(view -> onChannelItemLongClick(user, view));
                 
-                return convertView;
+                return convertView; // <--- PASTIKAN INI ADA DI DALAM BLOK USER_VIEW_TYPE
             } 
-            // HAPUS KURUNG TUTUP YANG NYASAR DI SINI SEBELUMNYA
-        } // <-- INI PENUTUP METHOD getView YANG BENAR
-    } // <-- INI PENUTUP CLASS ChannelListAdapter
-    // ==========================================================================
-    // ==========================================================================
+            // JANGAN ADA KURUNG TUTUP LAIN DI SINI SEBELUM PENUTUP METHOD getView
+            
+            return convertView; // <--- TAMBAHKAN INI SEBAGAI FALLBACK AMAN (Opsional tapi disarankan)
+        } // <-- PENUTUP METHOD getView
+    } // <-- PENUTUP CLASS ChannelListAdapter
+        // ==========================================================================
 
     void createStatusTimer() {
         final TextView connection = findViewById(R.id.connectionstat_textview);
