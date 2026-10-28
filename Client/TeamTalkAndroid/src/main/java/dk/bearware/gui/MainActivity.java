@@ -1294,12 +1294,7 @@ public class MainActivity extends AppCompatActivity
             }
         });
     }
-        // === TOMBOL SET DIUBAH JADI MENU PINDAH CHANNEL ===
-        Button btnSet = findViewById(R.id.btn_settings_shortcut);
-        if (btnSet != null) {
-            btnSet.setOnClickListener(v -> showChannelPickerDialog());
-        }
-    }
+        
     // AKHIR BAGIAN 1
 // === METHOD BARU: MENU PINDAH CHANNEL VIA TOMBOL SET ===
     private void showChannelPickerDialog() {
