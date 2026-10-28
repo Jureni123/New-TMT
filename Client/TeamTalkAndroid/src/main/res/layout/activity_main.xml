@@ -156,13 +156,13 @@
             android:gravity="center"
             android:paddingTop="4dp">
 
-            <!-- TOMBOL GANTI FOTO (BARU!) -->
+            <!-- TOMBOL ini buat menu baru (Belum di fungsikan) -->
             <Button
                 android:id="@+id/btn_change_avatar"
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="36dp"
-                android:text="Foto"
+                android:text="comingsoon"
                 android:textSize="10sp"
                 android:backgroundTint="#33b5e5"
                 android:textColor="#fff"
