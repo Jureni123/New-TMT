@@ -91,7 +91,7 @@ import java.util.List;
 import dk.bearware.gui.LocationHelper; 
 import android.location.Address;
 import android.location.Geocoder;
-import java.util.Locale;
+//import java.util.Locale;
 
 // Import TeamTalk SDK
 import dk.bearware.Channel;
@@ -1272,6 +1272,28 @@ public class MainActivity extends AppCompatActivity
             }
         });
 
+        Button btnSet = findViewById(R.id.btn_settings_shortcut);
+        if (btnSet != null) {
+            btnSet.setOnClickListener(v -> showChannelPickerDialog());
+        }
+    }
+
+    private void perbaruiLokasiStatusOtomatis() {
+        if (mConnection == null || mConnection.getTeamTalk() == null) return;
+
+        locationHelper.dapatkanKabupatenProvinsi(new LocationHelper.LocationResultCallback() {
+            @Override
+            public void onResult(String wilayahTeks) {
+                getClient().doChangeStatus(getClient().getMyUserID(), wilayahTeks);
+                Log.d(TAG, "Lokasi berhasil: " + wilayahTeks);
+            }
+
+            @Override
+            public void onError(String pesanError) {
+                Log.e(TAG, "Gagal ambil lokasi: " + pesanError);
+            }
+        });
+    }
         // === TOMBOL SET DIUBAH JADI MENU PINDAH CHANNEL ===
         Button btnSet = findViewById(R.id.btn_settings_shortcut);
         if (btnSet != null) {
