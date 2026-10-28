@@ -19,7 +19,7 @@
         android:src="@drawable/man_blue"
         android:importantForAccessibility="no" />
 
-    <!-- AREA NAMA & STATUS -->
+    <!-- AREA NAMA, STATUS & LOKASI -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -48,6 +48,18 @@
             android:ellipsize="end"
             android:textSize="12sp"
             android:textColor="?android:attr/textColorSecondary" />
+
+        <!-- 📍 TEXTVIEW BARU UNTUK LOKASI AMAN USER -->
+        <TextView
+            android:id="@+id/user_location"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textSize="11sp"
+            android:textColor="#757575"
+            android:visibility="gone"
+            android:layout_marginTop="2dp" />
     </LinearLayout>
 
     <!-- TOMBOL PESAN (DIBUNGKUS BIAR RAPI DI KANAN) -->
