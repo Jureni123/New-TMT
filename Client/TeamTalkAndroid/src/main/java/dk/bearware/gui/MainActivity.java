@@ -87,6 +87,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Vector;
 import java.util.List;
+//import baru GPS
+import dk.bearware.gui.LocationHelper; 
+import android.location.Address;
+import android.location.Geocoder;
+import java.util.Locale;
 
 // Import TeamTalk SDK
 import dk.bearware.Channel;
@@ -177,6 +182,8 @@ public class MainActivity extends AppCompatActivity
     
     // === PROFIL MANAGER YANG BERHASIL DI SCREENSHOT ===
     private UserProfileManager profileManager; 
+    private LocationHelper locationHelper;
+    // =========================================
 
     static final String MESSAGE_NOTIFICATION_TAG = "incoming_message";
     final int SOUND_VOICETXON = 1, SOUND_VOICETXOFF = 2, SOUND_USERMSG = 3,
@@ -197,7 +204,7 @@ public class MainActivity extends AppCompatActivity
     public TextMessageAdapter getTextMessagesAdapter() { return textmsgAdapter; }
     public MediaAdapter getMediaAdapter() { return mediaAdapter; }
 
-    @Override
+  @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         ctx = getApplicationContext();
@@ -207,6 +214,10 @@ public class MainActivity extends AppCompatActivity
         
         // INISIALISASI PROFILE MANAGER (KUNCI UTAMA)
         profileManager = new UserProfileManager();
+        
+        // === SEMATKAN INISIALISASI HELPER LOKASI DI SINI ===
+        locationHelper = new LocationHelper(this);
+        // ===================================================
         
         EdgeToEdgeHelper.enableEdgeToEdge(this);
 
@@ -244,13 +255,17 @@ public class MainActivity extends AppCompatActivity
         mTabLayout.setupWithViewPager(mViewPager);
         setupButtons();
 
+        // === SEMATKAN PEMICU LOKASI OTOMATIS DI SINI ===
+        perbaruiLokasiStatusOtomatis();
+        // ===============================================
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             final MediaPlayer mMediaPlayer = MediaPlayer.create(ctx, R.raw.silence);
             mMediaPlayer.setOnCompletionListener(mp -> mp.release());
             mMediaPlayer.start();
         }
     }
-
+    //============================
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main, menu);
@@ -892,6 +907,7 @@ public class MainActivity extends AppCompatActivity
                 }
                 return convertView;
             }
+            //===============================
             
          else if (type == USER_VIEW_TYPE) {
                 User user = (User) getItem(position);
@@ -929,6 +945,17 @@ public class MainActivity extends AppCompatActivity
                 }
                 // ================================================
 
+                // === TAMBAHKAN RENDERING LOKASI DI SINI (SEBELUM TOMBOL PESAN) ===
+                TextView tvLocation = convertView.findViewById(R.id.user_location);
+                
+                if (user.szStatusMsg != null && !user.szStatusMsg.isEmpty()) {
+                    tvLocation.setVisibility(View.VISIBLE);
+                    tvLocation.setText(user.szStatusMsg); 
+                } else {
+                    tvLocation.setVisibility(View.GONE);
+                }
+                // ==================================================================
+
                 Button sndmsg = convertView.findViewById(R.id.msg_btn);
                 if(sndmsg != null) {
                     sndmsg.setOnClickListener(v -> {
@@ -936,7 +963,8 @@ public class MainActivity extends AppCompatActivity
                         startActivity(intent.putExtra(TextMessageActivity.EXTRA_USERID, user.nUserID));
                     });
                 }
-
+                // ... [sisa kode onClick dan listener tetap sama] ...
+//==============================
                 convertView.setOnClickListener(view -> {
                     Intent intent = new Intent(MainActivity.this, UserPropActivity.class);
                     startActivityForResult(intent.putExtra(UserPropActivity.EXTRA_USERID, user.nUserID), REQUEST_EDITUSER);
