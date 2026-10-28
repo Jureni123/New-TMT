@@ -1279,7 +1279,8 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void perbaruiLokasiStatusOtomatis() {
- if (mConnection == null || mConnection.getTTInstance() == null) return;
+ if (mConnection == null || !mConnection.isBound() || mConnection.getClient() == null) return; 
+// if (mConnection == null || mConnection.getTTInstance() == null) return;
         locationHelper.dapatkanKabupatenProvinsi(new LocationHelper.LocationResultCallback() {
             @Override
             public void onResult(String wilayahTeks) {
