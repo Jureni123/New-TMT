@@ -1,4 +1,4 @@
-plugins {
+uplugins {
     alias(libs.plugins.android.application)
     // ✅ PLUGIN GOOGLE SERVICES
     id 'com.google.gms.google-services' version '4.4.0' apply false
@@ -144,6 +144,9 @@ dependencies {
     implementation 'com.github.bumptech.glide:glide:4.16.0'
 annotationProcessor 'com.github.bumptech.glide:compiler:4.16.0'
 implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+//=========gps
+    implementation 'com.google.android.gms:play-services-location:21.3.0'
+    
     implementation files('../../Library/TeamTalkJNI/libs/TeamTalk5.jar')
 
     testImplementation libs.junit.jupiter.api
