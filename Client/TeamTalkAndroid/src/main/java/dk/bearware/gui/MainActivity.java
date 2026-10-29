@@ -77,6 +77,15 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 
+// IMPORT ANDROID STANDAR UNTUK IZIN LOKASI
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import android.Manifest;
+import android.content.pm.PackageManager;
+
+// IMPORT OFALOKASI SESUAI STRUKTUR FOLDER GITHUB (dk.bearware.ofaid)
+import dk.bearware.ofaid.OfaLokasi;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -88,7 +97,7 @@ import java.util.Map;
 import java.util.Vector;
 import java.util.List;
 
-// Import TeamTalk SDK
+// Import TeamTalk SDK / Library Murni
 import dk.bearware.Channel;
 import dk.bearware.ChannelType;
 import dk.bearware.ClientFlag;
@@ -128,7 +137,7 @@ import dk.bearware.data.TTSWrapper;
 import dk.bearware.data.TextMessageAdapter;
 import dk.bearware.events.ClientEventListener;
 import dk.bearware.utils.PrefsHelper;
-
+import dk .bearware.ofaid.OfaLokasi;
 public class MainActivity extends AppCompatActivity
         implements TeamTalkConnectionListener, OnMenuItemClickListener, SensorEventListener,
         OnVoiceTransmissionToggleListener, ClientEventListener.OnConnectionLostListener,
@@ -178,7 +187,7 @@ public class MainActivity extends AppCompatActivity
     // === PROFIL MANAGER YANG BERHASIL DI SCREENSHOT ===
     private UserProfileManager profileManager; 
     
-    // === VARIABEL CACHE LOKASI UNTUK ADAPTER (PENGGANTI LOCATIONHELPER) ===
+    // === VARIABEL CACHE LOKASI UNTUK ADAPTER ===
     private String lokasiSayaCache = null; 
     // =========================================================
 
@@ -209,10 +218,8 @@ public class MainActivity extends AppCompatActivity
         mConnection = new TeamTalkConnection(this);
         setContentView(R.layout.activity_main);
         
-        // INISIALISASI PROFILE MANAGER (KUNCI UTAMA)
+        // INISIALISASI PROFILE MANAGER
         profileManager = new UserProfileManager();
-        
-        // [DIHAPUS] Inisialisasi LocationHelper yang gagal total
         
         EdgeToEdgeHelper.enableEdgeToEdge(this);
 
@@ -250,15 +257,13 @@ public class MainActivity extends AppCompatActivity
         mTabLayout.setupWithViewPager(mViewPager);
         setupButtons();
 
-        // [DIHAPUS] Pemanggilan perbaruiLokasiStatusOtomatis() yang gagal
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             final MediaPlayer mMediaPlayer = MediaPlayer.create(ctx, R.raw.silence);
             mMediaPlayer.setOnCompletionListener(mp -> mp.release());
             mMediaPlayer.start();
         }
     }
-    //============================
+    
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main, menu);
@@ -347,24 +352,7 @@ public class MainActivity extends AppCompatActivity
             startActivity(intent);
         } 
         
-        // === TRIGGER UPDATE LOKASI MANUAL VIA MENU ===
-        else if (itemId == R.id.action_update_lokasi) {
-            new Thread(() -> {
-                String lokasi = ofaid.OfaLokasi.getLokasiDaerah(MainActivity.this);
-                runOnUiThread(() -> {
-                    lokasiSayaCache = lokasi; 
-                    
-                    User myUser = new User();
-                    getClient().getUser(getClient().getMyUserID(), myUser);
-                    getClient().doChangeStatus(myUser.nStatusMode, lokasi);
-                    
-                    channelsAdapter.notifyDataSetChanged();
-                    Toast.makeText(MainActivity.this, "Lokasi diperbarui: " + lokasi, Toast.LENGTH_SHORT).show();
-                });
-            }).start();
-            return true;
-        }
-        // ==============================================
+        // [DIHAPUS TOTAL BLOK action_update_lokasi]
 
         else if (itemId == android.R.id.home) {
             int currentPage = mViewPager.getCurrentItem();
@@ -562,9 +550,10 @@ public class MainActivity extends AppCompatActivity
             mConnection.setBound(false);
         }
         Log.d(TAG, "Activity destroyed " + this.hashCode());
+        
     }
-//========================2
-            @Override
+    //=========================UI Helper
+@Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if ((requestCode == REQUEST_SELECT_FILE) && (resultCode == RESULT_OK)) {
             Uri uri = data.getData();
@@ -870,7 +859,6 @@ public class MainActivity extends AppCompatActivity
         private final UserProfileManager profileManager; 
         Vector<User> currentusers = new Vector<>();
 
-        // Constructor dengan ProfileManager
         ChannelListAdapter(Context context, UserProfileManager mgr) {
             inflater = LayoutInflater.from(context);
             this.profileManager = mgr;
@@ -959,18 +947,14 @@ public class MainActivity extends AppCompatActivity
                 TextView tvLocation = convertView.findViewById(R.id.user_location);
                 String lokasiTampil = null;
 
-                // 1. Cek diri sendiri dulu (cache lokal - hindari delay server)
                 if (isMyself && lokasiSayaCache != null) {
                     lokasiTampil = lokasiSayaCache;
-                } 
-                // 2. Jika bukan diri sendiri, parse dari szStatusMsg
-                else {
+                } else {
                     String statusMsg = user.szStatusMsg;
                     if (statusMsg != null && !statusMsg.trim().isEmpty()) {
                         String[] lines = statusMsg.split("\\r?\\n");
                         for (String line : lines) {
                             String trimmed = line.trim();
-                            // Parser AMAN: hanya terima format lokasi valid
                             if (trimmed.startsWith("") || (trimmed.contains(". ") && trimmed.length() > 3)) {
                                 lokasiTampil = trimmed;
                                 break;
@@ -979,7 +963,6 @@ public class MainActivity extends AppCompatActivity
                     }
                 }
 
-                // 3. Render ke TextView dengan visibility control
                 if (lokasiTampil != null && !lokasiTampil.isEmpty()) {
                     tvLocation.setText(lokasiTampil);
                     tvLocation.setVisibility(View.VISIBLE);
@@ -1307,7 +1290,6 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-// === METHOD BARU: MENU PINDAH CHANNEL VIA TOMBOL SET ===
     private void showChannelPickerDialog() {
         Map<Integer, Channel> allChans = getService().getChannels();
         List<Channel> list = new ArrayList<>(allChans.values());
@@ -1336,258 +1318,8 @@ public class MainActivity extends AppCompatActivity
         builder.setNegativeButton("Batal", null);
         builder.show();
     }
-                //=================3
-                private void initializeTeamTalkService(TeamTalkService service) {
-        this.users = new HashMap<>(service.getUsers());
-        int mychanid = getClient().getMyChannelID();
-        if (mychanid > 0) { setCurrentChannel(service.getChannels().get(mychanid)); setMyChannel(service.getChannels().get(mychanid)); }
-        mSectionsPagerAdapter.onPageSelected(mViewPager.getCurrentItem());
-        channelsAdapter.notifyDataSetChanged();
-        textmsgAdapter.setTextMessages(service.getChatLogTextMsgs());
-        textmsgAdapter.setMyUserID(getClient().getMyUserID());
-        textmsgAdapter.notifyDataSetChanged();
-        mediaAdapter.setTeamTalkService(service); mediaAdapter.notifyDataSetChanged();
-        filesAdapter.setTeamTalkService(service); filesAdapter.update(mychanid);
-        int outsndid = SoundDeviceConstants.TT_SOUNDDEVICE_ID_OPENSLES_DEFAULT;
-        int flags = getClient().getFlags();
-        if (((flags & ClientFlag.CLIENT_SNDOUTPUT_READY) == 0) && !getClient().initSoundOutputDevice(outsndid))
-            Toast.makeText(this, R.string.err_init_sound_output, Toast.LENGTH_LONG).show();
-        if (!restarting) {
-            service.setMute(false); service.enableVoiceTransmission(false); service.enableVoiceActivation(false);
-            if (Permissions.READ_PHONE_STATE.request(this)) service.enablePhoneCallReaction();
-        }
-        service.getEventHandler().registerOnConnectionLostListener(this, true);
-        service.getEventHandler().registerOnCmdProcessing(this, true);
-        service.getEventHandler().registerOnCmdMyselfLoggedIn(this, true);
-        service.getEventHandler().registerOnCmdMyselfLoggedOut(this, true);
-        service.getEventHandler().registerOnCmdMyselfKickedFromChannel(this, true);
-        service.getEventHandler().registerOnCmdUserLoggedIn(this, true);
-        service.getEventHandler().registerOnCmdUserLoggedOut(this, true);
-        service.getEventHandler().registerOnCmdUserUpdate(this, true);
-        service.getEventHandler().registerOnCmdUserJoinedChannel(this, true);
-        service.getEventHandler().registerOnCmdUserLeftChannel(this, true);
-        service.getEventHandler().registerOnCmdUserTextMessage(this, true);
-        service.getEventHandler().registerOnCmdChannelNew(this, true);
-        service.getEventHandler().registerOnCmdChannelUpdate(this, true);
-        service.getEventHandler().registerOnCmdChannelRemove(this, true);
-        service.getEventHandler().registerOnCmdFileNew(this, true);
-        service.getEventHandler().registerOnCmdFileRemove(this, true);
-        service.getEventHandler().registerOnUserStateChange(this, true);
-        service.getEventHandler().registerOnVoiceActivation(this, true);
-        service.setOnVoiceTransmissionToggleListener(this);
-        adjustSoundSystem();
-        if (prefs.get(Preferences.PREF_SOUNDSYSTEM_BLUETOOTH_HEADSET, false) && Permissions.BLUETOOTH.request(this)) service.watchBluetoothHeadset();
-        if (Permissions.WAKE_LOCK.request(this)) wakeLock.acquire();
-        int mastervol = prefs.get(Preferences.PREF_SOUNDSYSTEM_MASTERVOLUME, SoundLevel.SOUND_VOLUME_DEFAULT);
-        int gain = prefs.get(Preferences.PREF_SOUNDSYSTEM_MICROPHONEGAIN, SoundLevel.SOUND_GAIN_DEFAULT);
-        int voxlevel = prefs.get(Preferences.PREF_SOUNDSYSTEM_VOICEACTIVATION_LEVEL, 5);
-        boolean voxState = service.isVoiceActivationEnabled();
-        boolean txState = service.isVoiceTransmitting();
-        if (getClient().getSoundOutputVolume() != mastervol) getClient().setSoundOutputVolume(mastervol);
-        if (getClient().getSoundInputGainLevel() != gain) getClient().setSoundInputGainLevel(gain);
-        if (getClient().getVoiceActivationLevel() != voxlevel) getClient().setVoiceActivationLevel(voxlevel);
-        adjustMuteButton(findViewById(R.id.speakerBtn));
-        adjustVoxState(voxState, voxState ? voxlevel : getClient().getSoundInputGainLevel());
-        adjustTxState(txState);
-        final SeekBar masterSeekBar = findViewById(R.id.master_volSeekBar);
-        final SeekBar micSeekBar = findViewById(R.id.mic_gainSeekBar);
-        masterSeekBar.setProgress(Utils.refVolumeToPercent(getClient().getSoundOutputVolume()));
-        if (service.isVoiceActivationEnabled()) micSeekBar.setProgress(getClient().getVoiceActivationLevel());
-        else micSeekBar.setProgress(Utils.refVolumeToPercent(getClient().getSoundInputGainLevel()));
-        TextView volLevel = findViewById(R.id.vollevel_text);
-        volLevel.setText(Utils.refVolumeToPercent(mastervol) + "%");
-        volLevel.setContentDescription(getString(R.string.speaker_volume_description, volLevel.getText()));
-    }
-
-    private void closeTeamTalkService(TeamTalkService service) {
-        if (wakeLock.isHeld()) wakeLock.release();
-        service.setOnVoiceTransmissionToggleListener(null);
-        service.getEventHandler().unregisterListener(this);
-        filesAdapter.setTeamTalkService(null);
-        mediaAdapter.clearTeamTalkService(service);
-    }
-
-    @Override public void onServiceConnected(TeamTalkService service) { initializeTeamTalkService(service); }
-    @Override public void onServiceDisconnected(TeamTalkService service) { closeTeamTalkService(service); }
-    TeamTalkService getService() { return mConnection.getService(); }
-    TeamTalkBase getClient() { return getService().getTTInstance(); }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        Permissions granted = Permissions.onRequestResult(this, requestCode, grantResults);
-        if (granted == null) {
-            granted = Permissions.fromRequestCode(requestCode);
-            if ((granted != Permissions.READ_MEDIA_IMAGES) && (granted != Permissions.READ_MEDIA_VIDEO) && (granted != Permissions.READ_MEDIA_AUDIO)) return;
-        }
-        switch (granted) {
-            case READ_EXTERNAL_STORAGE: case READ_MEDIA_IMAGES: case READ_MEDIA_VIDEO: case READ_MEDIA_AUDIO:
-                if ((Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) || areMediaPermissionsComplete()) fileSelectionStart();
-                break;
-            case WAKE_LOCK: wakeLock.acquire(); break;
-            case READ_PHONE_STATE: if ((mConnection != null) && mConnection.isBound()) getService().enablePhoneCallReaction(); break;
-            case BLUETOOTH: if ((mConnection != null) && mConnection.isBound()) getService().watchBluetoothHeadset(); break;
-            default: break;
-        }
-    }
-
-    @Override public void onCmdProcessing(int cmdId, boolean complete) { if(complete) activecmds.remove(cmdId); }
-
-    // === SISTEM LOGIN FIREBASE ROBUST ===
-    @Override
-    public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
-        textmsgAdapter.setMyUserID(my_userid);
-        
-        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
-        if (currentUser != null) {
-            FirebaseFirestore db = FirebaseFirestore.getInstance();
-            String uid = currentUser.getUid(); 
-            
-            db.collection("pengguna")
-              .whereEqualTo("email", currentUser.getEmail()) 
-              .limit(1)
-              .get()
-              .addOnSuccessListener(querySnapshot -> {
-                  Map<String, Object> updates = new HashMap<>();
-                  updates.put("teamtalk_id", my_userid);
-                  updates.put("lastLogin", System.currentTimeMillis());
-                  
-                  if (!querySnapshot.isEmpty()) {
-                      String docId = querySnapshot.getDocuments().get(0).getId();
-                      db.collection("pengguna").document(docId)
-                        .update(updates)
-                        .addOnSuccessListener(a -> Log.d(TAG, "TeamTalk ID diupdate: " + my_userid))
-                        .addOnFailureListener(e -> Log.e(TAG, "Gagal update: " + e.getMessage()));
-                        
-                  } else {
-                      updates.put("foto_profil_url", currentUser.getPhotoUrl() != null ? 
-                                   currentUser.getPhotoUrl().toString() : "");
-                      updates.put("email", currentUser.getEmail());
-                      updates.put("displayName", currentUser.getDisplayName() != null ? 
-                                   currentUser.getDisplayName() : "Unknown");
-                      
-                      db.collection("pengguna").document(uid)
-                        .set(updates)
-                        .addOnSuccessListener(a -> Log.d(TAG, "Dokumen baru dibuat dengan UID: " + uid))
-                        .addOnFailureListener(e -> Log.e(TAG, "Gagal buat dokumen: " + e.getMessage()));
-                  }
-              });
-        }
-    }
-    // ==========================================================
-
-    @Override public void onCmdMyselfLoggedOut() { accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents(); }
-    @Override public void onCmdMyselfKickedFromChannel() { accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents(); }
-    @Override public void onCmdMyselfKickedFromChannel(User kicker) { accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents(); }
-
-    @Override
-    public void onCmdUserLoggedIn(User user) {
-        users.put(user.nUserID, user);
-        accessibilityAssistant.lockEvents(); textmsgAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents();
-        if (sounds.get(SOUND_USERLOGGEDIN) != 0) audioIcons.play(sounds.get(SOUND_USERLOGGEDIN), 1.0f, 1.0f, 0, 0, 1.0f);
-        if (ttsWrapper != null && prefs.get("server_login_checkbox", false)) {
-            String name = Utils.getDisplayName(getBaseContext(), user);
-            ttsWrapper.speak(name + " " + getResources().getString(R.string.text_tts_loggedin));
-        }
-    }
-
-    @Override
-    public void onCmdUserLoggedOut(User user) {
-        users.remove(user.nUserID);
-        accessibilityAssistant.lockEvents(); textmsgAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents();
-        if (sounds.get(SOUND_USERLOGGEDOFF) != 0) audioIcons.play(sounds.get(SOUND_USERLOGGEDOFF), 1.0f, 1.0f, 0, 0, 1.0f);
-        if (ttsWrapper != null && prefs.get("server_logout_checkbox", false)) {
-            String name = Utils.getDisplayName(getBaseContext(), user);
-            ttsWrapper.speak(name + " " + getResources().getString(R.string.text_tts_loggedout));
-        }
-    }
-
-    @Override
-    public void onCmdUserUpdate(User user) {
-        if(curchannel != null && curchannel.nChannelID == user.nChannelID) {
-            accessibilityAssistant.lockEvents();
-            channelsAdapter.notifyDataSetChanged();
-            accessibilityAssistant.unlockEvents();
-        }
-        subscriptionChange(user);
-        users.put(user.nUserID, user);
-        accessibilityAssistant.lockEvents();
-        textmsgAdapter.notifyDataSetChanged();
-        accessibilityAssistant.unlockEvents();
-    }
-
+    //===============Service login firebase
 @Override
-    public void onCmdUserJoinedChannel(User user) {
-        users.put(user.nUserID, user);
-        
-        // === PROSEDUR KEAMANAN WAJIB SAAT DIRI SENDIRI JOIN CHANNEL ===
-        if (user.nUserID == getClient().getMyUserID()) {
-            // 1. Cek izin lokasi (syarat mutlak anti-samaran/kriminalitas)
-            boolean adaIzin = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                           || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-            
-            if (!adaIzin) {
-                // 2. Jika belum izin, PAKSA minta sekarang juga agar tidak bisa menyamar
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 999);
-                Log.d(TAG, "Keamanan OfaID: Meminta izin lokasi wajib saat join");
-            } else {
-                // 3. Jika sudah izin, ambil & kirim bukti keberadaan ke server secara otomatis
-                new Thread(() -> {
-                    String lokasi = ofaid.OfaLokasi.getLokasiDaerah(MainActivity.this);
-                    runOnUiThread(() -> {
-                        User myUser = new User();
-                        getClient().getUser(getClient().getMyUserID(), myUser);
-                        
-                        // Kirim status lokasi sebagai validasi identitas forensik
-                        getClient().doChangeStatus(myUser.nStatusMode, lokasi);
-                        
-                        // Cache lokal agar adapter langsung render tanpa tunggu server
-                        lokasiSayaCache = lokasi;
-                        channelsAdapter.notifyDataSetChanged();
-                        
-                        Log.d(TAG, "Keamanan OfaID: Lokasi terverifikasi - " + lokasi);
-                    });
-                }).start();
-            }
-        }
-        // ================================================================
-
-        // [LOGIKA ASLI TEAMTALK TETAP UTUH DI BAWAH INI]
-        if (user.nUserID == getClient().getMyUserID()) {
-            Channel chan = getService().getChannels().get(user.nChannelID);
-            setCurrentChannel(chan);
-            filesAdapter.update(curchannel);
-            setMyChannel(chan);
-            accessibilityAssistant.lockEvents();
-            channelsAdapter.notifyDataSetChanged();
-            accessibilityAssistant.unlockEvents();
-            return;
-        }
-        if (mychannel != null && mychannel.nChannelID == user.nChannelID) {
-            if (user.nUserID != getClient().getMyUserID()) {
-                accessibilityAssistant.lockEvents();
-                textmsgAdapter.notifyDataSetChanged();
-                channelsAdapter.notifyDataSetChanged();
-                if (getClient().getMyChannelID() == user.nChannelID) {
-                    if (sounds.get(SOUND_USERJOIN) != 0) audioIcons.play(sounds.get(SOUND_USERJOIN), 1.0f, 1.0f, 0, 0, 1.0f);
-                    if (ttsWrapper != null && prefs.get("channel_join_checkbox", false)) {
-                        String name = Utils.getDisplayName(getBaseContext(), user);
-                        ttsWrapper.speak(name + " " + getResources().getString(R.string.text_tts_joined_chan));
-                    }
-                }
-                accessibilityAssistant.unlockEvents();
-            } else {
-                textmsgAdapter.notifyDataSetChanged();
-                channelsAdapter.notifyDataSetChanged();
-            }
-        } else if (isVisibleChannel(user.nChannelID)) {
-            accessibilityAssistant.lockEvents();
-            channelsAdapter.notifyDataSetChanged();
-            accessibilityAssistant.unlockEvents();
-        }
-    }
-
-    @Override
     public void onCmdUserLeftChannel(int channelid, User user) {
         users.put(user.nUserID, user);
         if(user.nUserID == getClient().getMyUserID()) {
@@ -1858,3 +1590,4 @@ public class MainActivity extends AppCompatActivity
         if (sound != 0) audioIcons.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
     }
 } // <-- Penutup Class MainActivity
+    
