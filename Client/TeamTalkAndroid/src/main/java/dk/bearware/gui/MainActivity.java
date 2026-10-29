@@ -64,7 +64,9 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentPagerAdapter;
@@ -87,15 +89,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Vector;
 import java.util.List;
-//import baru GPS
-import dk.bearware.gui.LocationHelper; 
-import android.location.Address;
-import android.location.Geocoder;
-//import baru
-import androidx.core.content.ContextCompat;
-import androidx.core.app.ActivityCompat;
+
 import android.Manifest;
 import android.content.pm.PackageManager;
+import dk.bearware.gui.LocationHelper; 
 
 // Import TeamTalk SDK
 import dk.bearware.Channel;
@@ -184,10 +181,8 @@ public class MainActivity extends AppCompatActivity
     boolean isProximitySensorRegistered = false;
     Map<Integer, User> users = new HashMap<>();
     
-    // === PROFIL MANAGER YANG BERHASIL DI SCREENSHOT ===
     private UserProfileManager profileManager; 
     private LocationHelper locationHelper;
-    // =========================================
 
     static final String MESSAGE_NOTIFICATION_TAG = "incoming_message";
     final int SOUND_VOICETXON = 1, SOUND_VOICETXOFF = 2, SOUND_USERMSG = 3,
@@ -208,7 +203,7 @@ public class MainActivity extends AppCompatActivity
     public TextMessageAdapter getTextMessagesAdapter() { return textmsgAdapter; }
     public MediaAdapter getMediaAdapter() { return mediaAdapter; }
 
-  @Override
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         ctx = getApplicationContext();
@@ -216,12 +211,8 @@ public class MainActivity extends AppCompatActivity
         mConnection = new TeamTalkConnection(this);
         setContentView(R.layout.activity_main);
         
-        // INISIALISASI PROFILE MANAGER (KUNCI UTAMA)
         profileManager = new UserProfileManager();
-        
-        // === SEMATKAN INISIALISASI HELPER LOKASI DI SINI ===
         locationHelper = new LocationHelper(this);
-        // ===================================================
         
         EdgeToEdgeHelper.enableEdgeToEdge(this);
 
@@ -245,7 +236,6 @@ public class MainActivity extends AppCompatActivity
         wakeLock.setReferenceCounted(false);
         proximityWakeLock.setReferenceCounted(false);
 
-        // ADAPTER SINGLE CHANNEL DENGAN PROFILE MANAGER
         channelsAdapter = new ChannelListAdapter(this.getBaseContext(), profileManager);
         filesAdapter = new FileListAdapter(this, this, accessibilityAssistant);
         textmsgAdapter = new TextMessageAdapter(this, accessibilityAssistant);
@@ -259,17 +249,15 @@ public class MainActivity extends AppCompatActivity
         mTabLayout.setupWithViewPager(mViewPager);
         setupButtons();
 
-        // === SEMATKAN PEMICU LOKASI OTOMATIS DI SINI ===
-        perbaruiLokasiStatusOtomatis();
-        // ===============================================
-
+        // PERBAIKAN: TIDAK LAGI MEMANGGIL LOKASI DI ONCREATE
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             final MediaPlayer mMediaPlayer = MediaPlayer.create(ctx, R.raw.silence);
             mMediaPlayer.setOnCompletionListener(mp -> mp.release());
             mMediaPlayer.start();
         }
     }
-    //============================
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main, menu);
@@ -852,7 +840,6 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // ====== CHANNEL LIST ADAPTER (SINGLE CHANNEL + PROFILE MANAGER) ======
     class ChannelListAdapter extends BaseAdapter {
         private static final int HEADER_VIEW_TYPE = 0;
         private static final int USER_VIEW_TYPE = 1;
@@ -860,7 +847,6 @@ public class MainActivity extends AppCompatActivity
         private final UserProfileManager profileManager; 
         Vector<User> currentusers = new Vector<>();
 
-        // Constructor dengan ProfileManager
         ChannelListAdapter(Context context, UserProfileManager mgr) {
             inflater = LayoutInflater.from(context);
             this.profileManager = mgr;
@@ -906,12 +892,10 @@ public class MainActivity extends AppCompatActivity
                 if (curchannel != null) {
                     headerTitle.setText("CH " + curchannel.nChannelID + " • " + curchannel.szName);
                     headerTopic.setText(curchannel.szTopic);
-                    // MENU EDIT/HAPUS CHANNEL KEMBALI AKTIF DI SINI
                     convertView.setOnLongClickListener(view -> onChannelItemLongClick(curchannel, view));
                 }
                 return convertView;
             }
-            //===============================
             
          else if (type == USER_VIEW_TYPE) {
                 User user = (User) getItem(position);
@@ -935,7 +919,6 @@ public class MainActivity extends AppCompatActivity
                 if (talking) icon_resource = female ? R.drawable.woman_green : R.drawable.man_green;
                 else icon_resource = female ? (away ? R.drawable.woman_orange : R.drawable.woman_blue) : (away ? R.drawable.man_orange : R.drawable.man_blue);
 
-                // === PERBAIKAN ANTI FOTO KEMBAR ===
                 usericon.setImageResource(icon_resource); 
                 
                 boolean isMyself = (user.nUserID == getService().getTTInstance().getMyUserID());
@@ -947,9 +930,7 @@ public class MainActivity extends AppCompatActivity
                 } else {
                     profileManager.loadAvatarByName(user.szNickname, usericon, icon_resource);
                 }
-                // ================================================
 
-                // === TAMBAHKAN RENDERING LOKASI DI SINI (SEBELUM TOMBOL PESAN) ===
                 TextView tvLocation = convertView.findViewById(R.id.user_location);
                 
                 if (user.szStatusMsg != null && !user.szStatusMsg.isEmpty()) {
@@ -958,7 +939,6 @@ public class MainActivity extends AppCompatActivity
                 } else {
                     tvLocation.setVisibility(View.GONE);
                 }
-                // ==================================================================
 
                 Button sndmsg = convertView.findViewById(R.id.msg_btn);
                 if(sndmsg != null) {
@@ -967,8 +947,7 @@ public class MainActivity extends AppCompatActivity
                         startActivity(intent.putExtra(TextMessageActivity.EXTRA_USERID, user.nUserID));
                     });
                 }
-                // ... [sisa kode onClick dan listener tetap sama] ...
-//==============================
+
                 convertView.setOnClickListener(view -> {
                     Intent intent = new Intent(MainActivity.this, UserPropActivity.class);
                     startActivityForResult(intent.putExtra(UserPropActivity.EXTRA_USERID, user.nUserID), REQUEST_EDITUSER);
@@ -976,14 +955,12 @@ public class MainActivity extends AppCompatActivity
 
                 convertView.setOnLongClickListener(view -> onChannelItemLongClick(user, view));
                 
-                return convertView; // <--- PASTIKAN INI ADA DI DALAM BLOK USER_VIEW_TYPE
+                return convertView;
             } 
-            // JANGAN ADA KURUNG TUTUP LAIN DI SINI SEBELUM PENUTUP METHOD getView
             
-            return convertView; // <--- TAMBAHKAN INI SEBAGAI FALLBACK AMAN (Opsional tapi disarankan)
-        } // <-- PENUTUP METHOD getView
-    } // <-- PENUTUP CLASS ChannelListAdapter
-        // ==========================================================================
+            return convertView;
+        }
+    }
 
     void createStatusTimer() {
         final TextView connection = findViewById(R.id.connectionstat_textview);
@@ -1281,41 +1258,25 @@ public class MainActivity extends AppCompatActivity
             btnSet.setOnClickListener(v -> showChannelPickerDialog());
         }
     }
-
+        //bagian satu ahir====
 private void perbaruiLokasiStatusOtomatis() {
-        // 1. Pastikan koneksi dan helper siap
         if (mConnection == null || !mConnection.isBound()) return; 
         if (locationHelper == null) locationHelper = new LocationHelper(this);
 
-        // 2. Cek & Minta Izin Lokasi (Wajib agar pop-up muncul di HP Oppo)
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 999);
             Log.d(TAG, "Meminta izin lokasi...");
-            return; // Stop dulu, tunggu user klik Izinkan
+            return; 
         }
 
-        // 3. Proses ambil lokasi jika izin sudah ada
         locationHelper.dapatkanKabupatenProvinsi(new LocationHelper.LocationResultCallback() {
             @Override
             public void onResult(String wilayahTeks) {
-                // --- LOGIKA AMAN BERDASARKAN User.java ---
-                
-                // A. Siapkan object User kosong
                 User myUser = new User();
-                
-                // B. Isi object tersebut dengan data diri sendiri dari SDK
-                // Method getUser() pasti ada di TeamTalkBase.java
                 getClient().getUser(getClient().getMyUserID(), myUser);
-                
-                // C. Ambil nilai nStatusMode (sesuai baris 21 di User.java yang kamu kirim)
-                int currentMode = myUser.nStatusMode; 
-                
-                // D. Update status pesan dengan lokasi baru
-                getClient().doChangeStatus(currentMode, wilayahTeks);
-                
-                Log.d(TAG, "Lokasi berhasil diupdate: " + wilayahTeks);
+                getClient().doChangeStatus(myUser.nStatusMode, wilayahTeks);
+                Log.d(TAG, "Lokasi berhasil: " + wilayahTeks);
             }
-
             @Override
             public void onError(String pesanError) {
                 Log.e(TAG, "Gagal ambil lokasi: " + pesanError);
@@ -1323,8 +1284,7 @@ private void perbaruiLokasiStatusOtomatis() {
             }
         });
     }
-    // AKHIR BAGIAN 1
-// === METHOD BARU: MENU PINDAH CHANNEL VIA TOMBOL SET ===
+
     private void showChannelPickerDialog() {
         Map<Integer, Channel> allChans = getService().getChannels();
         List<Channel> list = new ArrayList<>(allChans.values());
@@ -1432,6 +1392,18 @@ private void perbaruiLokasiStatusOtomatis() {
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        
+        // HANDLER KHUSUS UNTUK IZIN LOKASI
+        if (requestCode == 999) { 
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "Izin lokasi diberikan! Menjalankan update lokasi...");
+                perbaruiLokasiStatusOtomatis(); 
+            } else {
+                Toast.makeText(this, "Izin lokasi diperlukan untuk menampilkan posisi", Toast.LENGTH_LONG).show();
+            }
+            return; 
+        }
+
         Permissions granted = Permissions.onRequestResult(this, requestCode, grantResults);
         if (granted == null) {
             granted = Permissions.fromRequestCode(requestCode);
@@ -1450,17 +1422,18 @@ private void perbaruiLokasiStatusOtomatis() {
 
     @Override public void onCmdProcessing(int cmdId, boolean complete) { if(complete) activecmds.remove(cmdId); }
 
-    // === SISTEM LOGIN FIREBASE ROBUST (ADOPSI DARI CLASS SUKSES) ===
     @Override
     public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
+        // PANGGIL LOKASI DI SINI SAAT LOGIN BERHASIL
+        perbaruiLokasiStatusOtomatis(); 
+        
         textmsgAdapter.setMyUserID(my_userid);
         
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser != null) {
             FirebaseFirestore db = FirebaseFirestore.getInstance();
-            String uid = currentUser.getUid(); // Ambil UID dulu
+            String uid = currentUser.getUid(); 
             
-            // Cari dokumen berdasarkan Email (FALLBACK AMAN)
             db.collection("pengguna")
               .whereEqualTo("email", currentUser.getEmail()) 
               .limit(1)
@@ -1471,7 +1444,6 @@ private void perbaruiLokasiStatusOtomatis() {
                   updates.put("lastLogin", System.currentTimeMillis());
                   
                   if (!querySnapshot.isEmpty()) {
-                      // ✅ DOKUMEN ADA: Update saja
                       String docId = querySnapshot.getDocuments().get(0).getId();
                       db.collection("pengguna").document(docId)
                         .update(updates)
@@ -1479,14 +1451,12 @@ private void perbaruiLokasiStatusOtomatis() {
                         .addOnFailureListener(e -> Log.e(TAG, "Gagal update: " + e.getMessage()));
                         
                   } else {
-                      // ✅ DOKUMEN TIDAK ADA: Buat BARU dengan ID = UID
                       updates.put("foto_profil_url", currentUser.getPhotoUrl() != null ? 
                                    currentUser.getPhotoUrl().toString() : "");
                       updates.put("email", currentUser.getEmail());
                       updates.put("displayName", currentUser.getDisplayName() != null ? 
                                    currentUser.getDisplayName() : "Unknown");
                       
-                      // GUNAKAN set() DENGAN UID SEBAGAI ID DOKUMEN
                       db.collection("pengguna").document(uid)
                         .set(updates)
                         .addOnSuccessListener(a -> Log.d(TAG, "Dokumen baru dibuat dengan UID: " + uid))
@@ -1495,7 +1465,6 @@ private void perbaruiLokasiStatusOtomatis() {
               });
         }
     }
-    // ==========================================================
 
     @Override public void onCmdMyselfLoggedOut() { accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents(); }
     @Override public void onCmdMyselfKickedFromChannel() { accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents(); }
@@ -1523,7 +1492,6 @@ private void perbaruiLokasiStatusOtomatis() {
         }
     }
 
-    // METHOD UPDATE USER SEDERHANA (TIDAK ADA QUERY DI SINI, SERAHKAN KE PROFILE MANAGER)
     @Override
     public void onCmdUserUpdate(User user) {
         if(curchannel != null && curchannel.nChannelID == user.nChannelID) {
@@ -1605,10 +1573,8 @@ private void perbaruiLokasiStatusOtomatis() {
             accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents();
         }
     }
-    // AKHIR BAGIAN 2
-    
-// METHOD CHAT FINAL (MURNI TEAMTALK)
-    @Override
+                //bagian dua ahir======
+                @Override
     public void onCmdUserTextMessage(TextMessage textmessage) {
         User sender; String name;
         MyTextMessage completemsg = MyTextMessage.mergeMessage(txtmsgMergeBuffer, new MyTextMessage(textmessage, ""));
@@ -1846,4 +1812,4 @@ private void perbaruiLokasiStatusOtomatis() {
         int sound = sounds.get(bVoiceActive ? SOUND_VOXON : SOUND_VOXOFF);
         if (sound != 0) audioIcons.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
     }
-} // <-- Penutup Class MainActivity;
+} // <-- PENUTUP CLASS MainActivity (INI YANG TADI HILANG)
