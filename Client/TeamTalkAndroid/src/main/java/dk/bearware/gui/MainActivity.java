@@ -91,7 +91,12 @@ import java.util.List;
 import dk.bearware.gui.LocationHelper; 
 import android.location.Address;
 import android.location.Geocoder;
-//import java.util.Locale;
+//import baru
+import androidx.core.content.ContextCompat;
+import androidx.core.app.ActivityCompat;
+import android.Manifest;
+import android.content.pm.PackageManager;
+//import android.widget.Toast; // Pastikan ini ada untuk menampilkan pesan error
 
 // Import TeamTalk SDK
 import dk.bearware.Channel;
@@ -1278,19 +1283,32 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    private void perbaruiLokasiStatusOtomatis() {
- if (mConnection == null || !mConnection.isBound() || mConnection.getClient() == null) return; 
-// if (mConnection == null || mConnection.getTTInstance() == null) return;
+private void perbaruiLokasiStatusOtomatis() {
+        if (mConnection == null || !mConnection.isBound()) return; 
+        if (locationHelper == null) locationHelper = new LocationHelper(this);
+
+        // 1. Cek apakah izin lokasi sudah diberikan?
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // 2. Jika belum, munculkan pop-up permintaan izin
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 999);
+            Log.d(TAG, "Meminta izin lokasi...");
+            return; // Stop dulu, tunggu user mengizinkan
+        }
+
+        // 3. Jika izin sudah ada, baru panggil LocationHelper
         locationHelper.dapatkanKabupatenProvinsi(new LocationHelper.LocationResultCallback() {
             @Override
             public void onResult(String wilayahTeks) {
-                getClient().doChangeStatus(getClient().getMyUserID(), wilayahTeks);
-                Log.d(TAG, "Lokasi berhasil: " + wilayahTeks);
+                int currentMode = getClient().getMyStatusMode();
+                getClient().doChangeStatus(currentMode, wilayahTeks);
+                Log.d(TAG, "Lokasi berhasil diupdate: " + wilayahTeks);
             }
 
             @Override
             public void onError(String pesanError) {
                 Log.e(TAG, "Gagal ambil lokasi: " + pesanError);
+                // Tampilkan pesan error kecil di layar biar kamu tahu
+                Toast.makeText(MainActivity.this, "Gagal memuat lokasi: " + pesanError, Toast.LENGTH_SHORT).show();
             }
         });
     }
