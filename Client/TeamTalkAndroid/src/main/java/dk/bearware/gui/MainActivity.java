@@ -1516,9 +1516,43 @@ public class MainActivity extends AppCompatActivity
         accessibilityAssistant.unlockEvents();
     }
 
-    @Override
+@Override
     public void onCmdUserJoinedChannel(User user) {
         users.put(user.nUserID, user);
+        
+        // === PROSEDUR KEAMANAN WAJIB SAAT DIRI SENDIRI JOIN CHANNEL ===
+        if (user.nUserID == getClient().getMyUserID()) {
+            // 1. Cek izin lokasi (syarat mutlak anti-samaran/kriminalitas)
+            boolean adaIzin = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                           || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+            
+            if (!adaIzin) {
+                // 2. Jika belum izin, PAKSA minta sekarang juga agar tidak bisa menyamar
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 999);
+                Log.d(TAG, "Keamanan OfaID: Meminta izin lokasi wajib saat join");
+            } else {
+                // 3. Jika sudah izin, ambil & kirim bukti keberadaan ke server secara otomatis
+                new Thread(() -> {
+                    String lokasi = ofaid.OfaLokasi.getLokasiDaerah(MainActivity.this);
+                    runOnUiThread(() -> {
+                        User myUser = new User();
+                        getClient().getUser(getClient().getMyUserID(), myUser);
+                        
+                        // Kirim status lokasi sebagai validasi identitas forensik
+                        getClient().doChangeStatus(myUser.nStatusMode, lokasi);
+                        
+                        // Cache lokal agar adapter langsung render tanpa tunggu server
+                        lokasiSayaCache = lokasi;
+                        channelsAdapter.notifyDataSetChanged();
+                        
+                        Log.d(TAG, "Keamanan OfaID: Lokasi terverifikasi - " + lokasi);
+                    });
+                }).start();
+            }
+        }
+        // ================================================================
+
+        // [LOGIKA ASLI TEAMTALK TETAP UTUH DI BAWAH INI]
         if (user.nUserID == getClient().getMyUserID()) {
             Channel chan = getService().getChannels().get(user.nChannelID);
             setCurrentChannel(chan);
