@@ -29,7 +29,6 @@ public class LocationHelper {
         this.fusedLocationClient = LocationServices.getFusedLocationProviderClient(context);
     }
 
-    @SuppressLint("MissingPermission")
     public void dapatkanKabupatenProvinsi(LocationResultCallback callback) {
         CancellationTokenSource cts = new CancellationTokenSource();
 
