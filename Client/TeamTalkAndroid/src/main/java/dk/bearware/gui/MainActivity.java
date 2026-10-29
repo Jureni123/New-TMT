@@ -96,7 +96,6 @@ import androidx.core.content.ContextCompat;
 import androidx.core.app.ActivityCompat;
 import android.Manifest;
 import android.content.pm.PackageManager;
-//import android.widget.Toast; // Pastikan ini ada untuk menampilkan pesan error
 
 // Import TeamTalk SDK
 import dk.bearware.Channel;
@@ -1284,35 +1283,46 @@ public class MainActivity extends AppCompatActivity
     }
 
 private void perbaruiLokasiStatusOtomatis() {
+        // 1. Pastikan koneksi dan helper siap
         if (mConnection == null || !mConnection.isBound()) return; 
         if (locationHelper == null) locationHelper = new LocationHelper(this);
 
-        // 1. Cek apakah izin lokasi sudah diberikan?
+        // 2. Cek & Minta Izin Lokasi (Wajib agar pop-up muncul di HP Oppo)
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // 2. Jika belum, munculkan pop-up permintaan izin
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 999);
             Log.d(TAG, "Meminta izin lokasi...");
-            return; // Stop dulu, tunggu user mengizinkan
+            return; // Stop dulu, tunggu user klik Izinkan
         }
 
-        // 3. Jika izin sudah ada, baru panggil LocationHelper
+        // 3. Proses ambil lokasi jika izin sudah ada
         locationHelper.dapatkanKabupatenProvinsi(new LocationHelper.LocationResultCallback() {
             @Override
             public void onResult(String wilayahTeks) {
-                int currentMode = getClient().getMyStatusMode();
+                // --- LOGIKA AMAN BERDASARKAN User.java ---
+                
+                // A. Siapkan object User kosong
+                User myUser = new User();
+                
+                // B. Isi object tersebut dengan data diri sendiri dari SDK
+                // Method getUser() pasti ada di TeamTalkBase.java
+                getClient().getUser(getClient().getMyUserID(), myUser);
+                
+                // C. Ambil nilai nStatusMode (sesuai baris 21 di User.java yang kamu kirim)
+                int currentMode = myUser.nStatusMode; 
+                
+                // D. Update status pesan dengan lokasi baru
                 getClient().doChangeStatus(currentMode, wilayahTeks);
+                
                 Log.d(TAG, "Lokasi berhasil diupdate: " + wilayahTeks);
             }
 
             @Override
             public void onError(String pesanError) {
                 Log.e(TAG, "Gagal ambil lokasi: " + pesanError);
-                // Tampilkan pesan error kecil di layar biar kamu tahu
                 Toast.makeText(MainActivity.this, "Gagal memuat lokasi: " + pesanError, Toast.LENGTH_SHORT).show();
             }
         });
     }
-        
     // AKHIR BAGIAN 1
 // === METHOD BARU: MENU PINDAH CHANNEL VIA TOMBOL SET ===
     private void showChannelPickerDialog() {
