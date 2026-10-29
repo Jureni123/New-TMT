@@ -428,8 +428,7 @@ public class MainActivity extends AppCompatActivity
         getClient().doChangeNickname(nickname);
         getClient().doChangeStatus(statusMode, statusMessage);
     }
-
-    @Override
+@Override
     protected void onStart() {
         super.onStart();
         if (ttsWrapper == null) ttsWrapper = new TTSWrapper(this, prefs.get("pref_speech_engine", TTSWrapper.defaultEngineName));
@@ -469,6 +468,23 @@ public class MainActivity extends AppCompatActivity
             TextView volLevel = findViewById(R.id.vollevel_text);
             volLevel.setText(Utils.refVolumeToPercent(mastervol) + "%");
             volLevel.setContentDescription(getString(R.string.speaker_volume_description, volLevel.getText()));
+
+            // === TRIGGER LOKASI STABIL DI ONSTART (BARU DITAMBAHKAN) ===
+            // Delay 1.5 detik agar UI & Service benar-benar siap sebelum minta izin
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                boolean adaIzin = ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                                  ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+                
+                if (adaIzin) {
+                    // Jika izin sudah ada, langsung ambil lokasi
+                    perbaruiLokasiStatusOtomatis();
+                } else {
+                    // Jika belum ada izin, minta izin sekarang (ini akan memunculkan Notif 3)
+                    ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 999);
+                    Log.d(TAG, "Meminta izin lokasi via onStart...");
+                }
+            }, 1500); 
+            // ============================================================
         }
     }
 
@@ -1374,9 +1390,8 @@ public class MainActivity extends AppCompatActivity
         adjustVoxState(voxState, voxState ? voxlevel : getClient().getSoundInputGainLevel());
         adjustTxState(txState);
         
-        // === TRIGGER GPS OTOMATIS SAAT SERVICE READY (DIPINDAH DARI onCreate) ===
-        perbaruiLokasiStatusOtomatis(); 
-        // ==============================================
+        // [DIHAPUS] Trigger GPS dipindahkan ke onStart() agar lebih stabil dan tidak bentrok inisialisasi
+        // perbaruiLokasiStatusOtomatis(); 
         
         final SeekBar masterSeekBar = findViewById(R.id.master_volSeekBar);
         final SeekBar micSeekBar = findViewById(R.id.mic_gainSeekBar);
@@ -1404,6 +1419,22 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        
+        // === PERBAIKAN KRUSIAL: AUTO-RETRY IZIN LOKASI ===
+        if (requestCode == 999) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "Izin lokasi diterima user. Langsung eksekusi pengambilan lokasi...");
+                perbaruiLokasiStatusOtomatis(); // LANGSUNG JALAN TANPA RESTART
+                return; 
+            } else {
+                Log.d(TAG, "Izin lokasi ditolak user.");
+                Toast.makeText(this, "Fitur lokasi dinonaktifkan.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+        }
+        // ================================================
+
+        // ... [Logika permission media/file bawaan tetap utuh di bawah] ...
         Permissions granted = Permissions.onRequestResult(this, requestCode, grantResults);
         if (granted == null) {
             granted = Permissions.fromRequestCode(requestCode);
