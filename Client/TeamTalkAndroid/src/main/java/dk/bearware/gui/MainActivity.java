@@ -152,7 +152,7 @@ public class MainActivity extends AppCompatActivity
 
     SectionsPagerAdapter mSectionsPagerAdapter;
     ViewPager mViewPager;
-    TabLayout mTabLayout;
+    TabLayout TT5Layout;
 
     public static final String TAG = "bearware";
     private static final String MSG_NOTIFICATION_CHANNEL_ID = "TT_PM";
@@ -253,10 +253,22 @@ public class MainActivity extends AppCompatActivity
         mViewPager = findViewById(R.id.pager);
         mViewPager.setAdapter(mSectionsPagerAdapter);
         mViewPager.addOnPageChangeListener(mSectionsPagerAdapter);
-        mTabLayout.setupWithViewPager(mViewPager);
+        mTabLayout.setupWithViewPager(mViewPager); // Perbaikan typo 'Layout' menjadi 'mTabLayout'
         setupButtons();
 
-        // [DIHAPUS: perbaruiLokasiStatusOtomatis() dipindah ke initializeTeamTalkService]
+        // === TRIGGER IZIN LOKASI SEQUENTIAL (PRIORITAS KE-2 SETELAH MIC/KAMERA) ===
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            boolean adaIzin = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                              ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+            
+            if (!adaIzin) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 999);
+                Log.d(TAG, "Meminta izin lokasi secara sequential di onCreate...");
+            } else {
+                perbaruiLokasiStatusOtomatis();
+            }
+        }, 500); // Delay 500ms agar dialog Mic/Kamera sempat muncul dulu
+        // =====================================================================
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             final MediaPlayer mMediaPlayer = MediaPlayer.create(ctx, R.raw.silence);
@@ -469,21 +481,7 @@ public class MainActivity extends AppCompatActivity
             volLevel.setText(Utils.refVolumeToPercent(mastervol) + "%");
             volLevel.setContentDescription(getString(R.string.speaker_volume_description, volLevel.getText()));
 
-            // === TRIGGER LOKASI STABIL DI ONSTART (BARU DITAMBAHKAN) ===
-            // Delay 1.5 detik agar UI & Service benar-benar siap sebelum minta izin
-            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                boolean adaIzin = ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-                                  ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-                
-                if (adaIzin) {
-                    // Jika izin sudah ada, langsung ambil lokasi
-                    perbaruiLokasiStatusOtomatis();
-                } else {
-                    // Jika belum ada izin, minta izin sekarang (ini akan memunculkan Notif 3)
-                    ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 999);
-                    Log.d(TAG, "Meminta izin lokasi via onStart...");
-                }
-            }, 1500); 
+    
             // ============================================================
         }
     }
@@ -956,23 +954,25 @@ public class MainActivity extends AppCompatActivity
                     profileManager.loadAvatarByName(user.szNickname, usericon, icon_resource);
                 }
 
-                // === RENDERING LOKASI DENGAN PARSING AMAN (TRANSLASI DARI MUMBLE) ===
+          // === RENDERING LOKASI DENGAN FALLBACK SERVER (TAHAN RESTART) ===
                 TextView tvLocation = convertView.findViewById(R.id.user_location);
                 String lokasiTampil = null;
 
-                // Cek diri sendiri dulu pakai cache lokal
-                if (isMyself && lokasiSayaCache != null) {
+                boolean isMyself = (user.nUserID == getService().getTTInstance().getMyUserID());
+                
+                // Prioritas 1: Jika diri sendiri DAN cache sudah ada & valid, pakai cache (instan)
+                if (isMyself && lokasiSayaCache != null && !lokasiSayaCache.contains("Mendapatkan")) {
                     lokasiTampil = lokasiSayaCache;
                 } 
-                // Jika bukan diri sendiri, parse dari szStatusMsg
+                // Prioritas 2: Fallback ke parsing szStatusMsg dari server (untuk diri sendiri saat cache kosong ATAU user lain)
                 else {
                     String statusMsg = user.szStatusMsg;
                     if (statusMsg != null && !statusMsg.trim().isEmpty()) {
                         String[] lines = statusMsg.split("\\r?\\n");
                         for (String line : lines) {
                             String trimmed = line.trim();
-                            // Pola parsing identik: cari "📍" ATAU ". " (titik spasi)
-                            if (trimmed.startsWith("📍") || (trimmed.contains(". ") && trimmed.length() > 3)) {
+                            // Cari pola lokasi yang pernah dikirim sebelumnya
+                            if (trimmed.startsWith("") || (trimmed.contains(". ") && trimmed.length() > 3)) {
                                 lokasiTampil = trimmed;
                                 break;
                             }
@@ -987,7 +987,6 @@ public class MainActivity extends AppCompatActivity
                     tvLocation.setVisibility(View.GONE);
                 }
                 // ==================================================================
-
                 Button sndmsg = convertView.findViewById(R.id.msg_btn);
                 if(sndmsg != null) {
                     sndmsg.setOnClickListener(v -> {
