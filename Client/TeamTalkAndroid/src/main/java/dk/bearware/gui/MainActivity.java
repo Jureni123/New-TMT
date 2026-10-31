@@ -1435,7 +1435,7 @@ protected void onCreate(Bundle savedInstanceState) {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         
-        // 1. Handle Izin Lokasi (Kode 999)
+        // 1. Handle Izin Lokasi (Kode 999) - JANGAN DIUBAH
         if (requestCode == REQUEST_CODE_LOCATION_PERMISSION) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 Log.d(TAG, "Izin lokasi diberikan");
@@ -1444,8 +1444,8 @@ protected void onCreate(Bundle savedInstanceState) {
                 Toast.makeText(this, "Izin lokasi diperlukan", Toast.LENGTH_SHORT).show();
             }
             
-            // 2. PENTING: Setelah lokasi selesai, PICU ULANG izin Telepon & Penyimpanan
-            // Ini menjamin izin muncul meskipun sebelumnya gagal/bentrok
+            // 2. KRUSIAL: Setelah lokasi selesai, PICU ULANG izin Telepon & Penyimpanan
+            // Ini menjamin izin muncul meskipun sebelumnya gagal/bentrok di initializeTeamTalkService
             Permissions.READ_PHONE_STATE.request(this);
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -1490,7 +1490,6 @@ protected void onCreate(Bundle savedInstanceState) {
                 break;
         }
     }
-
     @Override public void onCmdProcessing(int cmdId, boolean complete) { if(complete) activecmds.remove(cmdId); }
 
     // === SISTEM LOGIN FIREBASE ROBUST (ADOPSI DARI CLASS SUKSES) ===
