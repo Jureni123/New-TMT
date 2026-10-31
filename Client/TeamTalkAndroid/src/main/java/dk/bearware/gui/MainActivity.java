@@ -1435,31 +1435,59 @@ protected void onCreate(Bundle savedInstanceState) {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         
-        // Handle izin lokasi khusus
+        // 1. Handle Izin Lokasi (Kode 999)
         if (requestCode == REQUEST_CODE_LOCATION_PERMISSION) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Log.d(TAG, "Izin lokasi diberikan, mengambil lokasi...");
+                Log.d(TAG, "Izin lokasi diberikan");
                 ambilDanTampilkanLokasi();
             } else {
-                Log.w(TAG, "Izin lokasi ditolak");
-                Toast.makeText(this, "Izin lokasi diperlukan untuk fitur ini", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Izin lokasi diperlukan", Toast.LENGTH_SHORT).show();
             }
-            return;
+            
+            // 2. PENTING: Setelah lokasi selesai, PICU ULANG izin Telepon & Penyimpanan
+            // Ini menjamin izin muncul meskipun sebelumnya gagal/bentrok
+            Permissions.READ_PHONE_STATE.request(this);
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                Permissions.READ_MEDIA_AUDIO.request(this, true);
+                Permissions.READ_MEDIA_VIDEO.request(this, true);
+                Permissions.READ_MEDIA_IMAGES.request(this, true);
+            } else {
+                Permissions.READ_EXTERNAL_STORAGE.request(this);
+            }
+            return; 
         }
         
+        // 3. Handle hasil izin lain (Telepon, Storage, dll) via SDK TeamTalk
         Permissions granted = Permissions.onRequestResult(this, requestCode, grantResults);
         if (granted == null) {
             granted = Permissions.fromRequestCode(requestCode);
-            if ((granted != Permissions.READ_MEDIA_IMAGES) && (granted != Permissions.READ_MEDIA_VIDEO) && (granted != Permissions.READ_MEDIA_AUDIO)) return;
+            if ((granted != Permissions.READ_MEDIA_IMAGES) && 
+                (granted != Permissions.READ_MEDIA_VIDEO) && 
+                (granted != Permissions.READ_MEDIA_AUDIO)) return;
         }
+        
         switch (granted) {
-            case READ_EXTERNAL_STORAGE: case READ_MEDIA_IMAGES: case READ_MEDIA_VIDEO: case READ_MEDIA_AUDIO:
-                if ((Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) || areMediaPermissionsComplete()) fileSelectionStart();
+            case READ_EXTERNAL_STORAGE: 
+            case READ_MEDIA_IMAGES: 
+            case READ_MEDIA_VIDEO: 
+            case READ_MEDIA_AUDIO:
+                if ((Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) || areMediaPermissionsComplete()) {
+                    fileSelectionStart(); 
+                }
                 break;
-            case WAKE_LOCK: wakeLock.acquire(); break;
-            case READ_PHONE_STATE: if ((mConnection != null) && mConnection.isBound()) getService().enablePhoneCallReaction(); break;
-            case BLUETOOTH: if ((mConnection != null) && mConnection.isBound()) getService().watchBluetoothHeadset(); break;
-            default: break;
+            case WAKE_LOCK: 
+                wakeLock.acquire(); 
+                break;
+            case READ_PHONE_STATE: 
+                if ((mConnection != null) && mConnection.isBound()) {
+                    getService().enablePhoneCallReaction(); 
+                    Log.d(TAG, "Ready Phone Aktif!");
+                }
+                break;
+            case BLUETOOTH: 
+                if ((mConnection != null) && mConnection.isBound()) getService().watchBluetoothHeadset(); 
+                break;
         }
     }
 
