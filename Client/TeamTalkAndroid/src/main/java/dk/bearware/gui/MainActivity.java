@@ -204,67 +204,70 @@ public class MainActivity extends AppCompatActivity
     private Context ctx;
     private PrefsHelper prefs;
 
+private static final int REQUEST_CODE_LOCATION_PERMISSION = 999;
+private boolean lokasiSudahDiminta = false;
     public ChannelListAdapter getChannelsAdapter() { return channelsAdapter; }
     public FileListAdapter getFilesAdapter() { return filesAdapter; }
     public TextMessageAdapter getTextMessagesAdapter() { return textmsgAdapter; }
     public MediaAdapter getMediaAdapter() { return mediaAdapter; }
 
   @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        ctx = getApplicationContext();
-        prefs = new PrefsHelper(ctx);
-        mConnection = new TeamTalkConnection(this);
-        setContentView(R.layout.activity_main);
-        
-        // INISIALISASI PROFILE MANAGER (KUNCI UTAMA)
-        profileManager = new UserProfileManager();
-        
-        EdgeToEdgeHelper.enableEdgeToEdge(this);
+protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    ctx = getApplicationContext();
+    prefs = new PrefsHelper(ctx);
+    mConnection = new TeamTalkConnection(this);
+    setContentView(R.layout.activity_main);
+    
+    // INISIALISASI PROFILE MANAGER (KUNCI UTAMA)
+    profileManager = new UserProfileManager();
+    
+    EdgeToEdgeHelper.enableEdgeToEdge(this);
 
-        String serverName = getIntent().getStringExtra(ServerEntry.KEY_SERVERNAME);
-        if ((serverName != null) && !serverName.isEmpty()) setTitle(serverName);
-        
-        ActionBar ab = getSupportActionBar();
-        if (ab != null) ab.setDisplayHomeAsUpEnabled(true);
+    String serverName = getIntent().getStringExtra(ServerEntry.KEY_SERVERNAME);
+    if ((serverName != null) && !serverName.isEmpty()) setTitle(serverName);
+    
+    ActionBar ab = getSupportActionBar();
+    if (ab != null) ab.setDisplayHomeAsUpEnabled(true);
 
-        mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
-        mSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
-        restarting = (savedInstanceState != null);
-        accessibilityAssistant = new AccessibilityAssistant(this);
-        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-        notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        
-        wakeLock = ((PowerManager)getSystemService(Context.POWER_SERVICE))
-                   .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG + ":TeamTalk5");
-        proximityWakeLock = ((PowerManager)getSystemService(Context.POWER_SERVICE))
-                            .newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, TAG + ":TeamTalk5");
-        wakeLock.setReferenceCounted(false);
-        proximityWakeLock.setReferenceCounted(false);
+    mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+    mSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
+    restarting = (savedInstanceState != null);
+    accessibilityAssistant = new AccessibilityAssistant(this);
+    audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+    notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+    
+    wakeLock = ((PowerManager)getSystemService(Context.POWER_SERVICE))
+               .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG + ":TeamTalk5");
+    proximityWakeLock = ((PowerManager)getSystemService(Context.POWER_SERVICE))
+                        .newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, TAG + ":TeamTalk5");
+    wakeLock.setReferenceCounted(false);
+    proximityWakeLock.setReferenceCounted(false);
 
-        // ADAPTER SINGLE CHANNEL DENGAN PROFILE MANAGER
-        channelsAdapter = new ChannelListAdapter(this.getBaseContext(), profileManager);
-        filesAdapter = new FileListAdapter(this, this, accessibilityAssistant);
-        textmsgAdapter = new TextMessageAdapter(this, accessibilityAssistant);
-        mediaAdapter = new MediaAdapter(this.getBaseContext());
-        
-        mSectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
-        mTabLayout = findViewById(R.id.tab_layout);
-        mViewPager = findViewById(R.id.pager);
-        mViewPager.setAdapter(mSectionsPagerAdapter);
-        mViewPager.addOnPageChangeListener(mSectionsPagerAdapter);
-        mTabLayout.setupWithViewPager(mViewPager);
-        setupButtons();
+    // ADAPTER SINGLE CHANNEL DENGAN PROFILE MANAGER
+    channelsAdapter = new ChannelListAdapter(this.getBaseContext(), profileManager);
+    filesAdapter = new FileListAdapter(this, this, accessibilityAssistant);
+    textmsgAdapter = new TextMessageAdapter(this, accessibilityAssistant);
+    mediaAdapter = new MediaAdapter(this.getBaseContext());
+    
+    mSectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
+    mTabLayout = findViewById(R.id.tab_layout);
+    mViewPager = findViewById(R.id.pager);
+    mViewPager.setAdapter(mSectionsPagerAdapter);
+    mViewPager.addOnPageChangeListener(mSectionsPagerAdapter);
+    mTabLayout.setupWithViewPager(mViewPager);
+    setupButtons();
 
-        // [DIHAPUS: perbaruiLokasiStatusOtomatis() dipindah ke initializeTeamTalkService]
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            final MediaPlayer mMediaPlayer = MediaPlayer.create(ctx, R.raw.silence);
-            mMediaPlayer.setOnCompletionListener(mp -> mp.release());
-            mMediaPlayer.start();
-        }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        final MediaPlayer mMediaPlayer = MediaPlayer.create(ctx, R.raw.silence);
+        mMediaPlayer.setOnCompletionListener(mp -> mp.release());
+        mMediaPlayer.start();
     }
     
+    // === MULAI GPS LANGSUNG SAAT APP DIBUKA (SEBELUM MASUK CHAT) ===
+    mulaiProsesLokasi();
+    // ================================================================
+}
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main, menu);
@@ -471,8 +474,7 @@ public class MainActivity extends AppCompatActivity
             volLevel.setContentDescription(getString(R.string.speaker_volume_description, volLevel.getText()));
         }
     }
-
-    @Override
+@Override
     protected void onResume() {
         super.onResume();
         boolean proximitySensor = prefs.get("proximity_sensor_checkbox", false);
@@ -507,6 +509,12 @@ public class MainActivity extends AppCompatActivity
         ttsWrapper.useAnnouncements = prefs.get("pref_use_announcements", false);
         ttsWrapper.setAccessibilityStream(prefs.get("pref_a11y_volume", false));
         ttsWrapper.switchEngine(prefs.get("pref_speech_engine", TTSWrapper.defaultEngineName));
+        
+        // === REFRESH LOKASI SAAT RESUME ===
+        if (lokasiSayaCache == null || lokasiSayaCache.isEmpty()) {
+            mulaiProsesLokasi();
+        }
+        // ==================================
     }
 
     @Override
@@ -1375,7 +1383,16 @@ public class MainActivity extends AppCompatActivity
         adjustTxState(txState);
         
         // === TRIGGER GPS OTOMATIS SAAT SERVICE READY (DIPINDAH DARI onCreate) ===
-        perbaruiLokasiStatusOtomatis(); 
+        // === UPDATE STATUS LOKASI JIKA SUDAH ADA CACHE ===
+        if (lokasiSayaCache != null && !lokasiSayaCache.isEmpty()) {
+            User myUser = new User();
+            getClient().getUser(getClient().getMyUserID(), myUser);
+            if (myUser.nUserID > 0) {
+                getClient().doChangeStatus(myUser.nStatusMode, lokasiSayaCache);
+                channelsAdapter.notifyDataSetChanged();
+                Log.d(TAG, "Status lokasi diupdate dari cache: " + lokasiSayaCache);
+            }
+        }
         // ==============================================
         
         final SeekBar masterSeekBar = findViewById(R.id.master_volSeekBar);
@@ -1401,9 +1418,22 @@ public class MainActivity extends AppCompatActivity
     TeamTalkService getService() { return mConnection.getService(); }
     TeamTalkBase getClient() { return getService().getTTInstance(); }
 
-    @Override
+@Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        
+        // Handle izin lokasi khusus
+        if (requestCode == REQUEST_CODE_LOCATION_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "Izin lokasi diberikan, mengambil lokasi...");
+                ambilDanTampilkanLokasi();
+            } else {
+                Log.w(TAG, "Izin lokasi ditolak");
+                Toast.makeText(this, "Izin lokasi diperlukan untuk fitur ini", Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
+        
         Permissions granted = Permissions.onRequestResult(this, requestCode, grantResults);
         if (granted == null) {
             granted = Permissions.fromRequestCode(requestCode);
@@ -1813,35 +1843,42 @@ public class MainActivity extends AppCompatActivity
         if (sound != 0) audioIcons.play(sound, 1.0f, 1.0f, 0, 0, 1.0f);
     }
 
-    // === METHOD GPS BERSIH TANPA LOCATIONHELPER LAMA ===
-    private void perbaruiLokasiStatusOtomatis() {
-        // 1. Cek Izin Lokasi Pasif
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 999);
-            Log.d(TAG, "Meminta izin lokasi wajib...");
-            return; 
+// === METHOD BARU: PROSES LOKASI DI AWAL ===
+    private void mulaiProsesLokasi() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            ambilDanTampilkanLokasi();
+        } else {
+            if (!lokasiSudahDiminta) {
+                ActivityCompat.requestPermissions(this, 
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 
+                    REQUEST_CODE_LOCATION_PERMISSION);
+                lokasiSudahDiminta = true;
+                Log.d(TAG, "Meminta izin lokasi di awal...");
+            }
         }
-
-        // 2. Ambil Lokasi di Thread Terpisah (Agar UI Tidak Freeze)
+    }
+// === METHOD BARU: AMBIL DAN TAMPILKAN LOKASI ===
+    private void ambilDanTampilkanLokasi() {
         new Thread(() -> {
             String wilayahTeks = dk.bearware.ofaid.OfaLokasi.getLokasiDaerah(MainActivity.this);
             
             runOnUiThread(() -> {
-                // 3. Set Cache Lokal untuk Render Instan
                 lokasiSayaCache = wilayahTeks;
                 
-                // 4. Kirim ke Server via Jalur Status Resmi
-                User myUser = new User();
-                getClient().getUser(getClient().getMyUserID(), myUser);
-                getClient().doChangeStatus(myUser.nStatusMode, wilayahTeks);
+                if (mConnection != null && mConnection.isBound()) {
+                    User myUser = new User();
+                    getClient().getUser(getClient().getMyUserID(), myUser);
+                    if (myUser.nUserID > 0) {
+                        getClient().doChangeStatus(myUser.nStatusMode, wilayahTeks);
+                    }
+                }
                 
-                // 5. Refresh Adapter Agar Tampilan Langsung Update
                 channelsAdapter.notifyDataSetChanged();
-                
-                Log.d(TAG, "Lokasi berhasil diupdate: " + wilayahTeks);
+                Log.d(TAG, "Lokasi berhasil diambil di awal: " + wilayahTeks);
             });
         }).start();
+    
     }
+    
 } // <-- PENUTUP CLASS MainActivity
