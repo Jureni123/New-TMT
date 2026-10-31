@@ -1418,7 +1418,7 @@ protected void onCreate(Bundle savedInstanceState) {
     TeamTalkService getService() { return mConnection.getService(); }
     TeamTalkBase getClient() { return getService().getTTInstance(); }
 
-@Override
+/*@Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         
@@ -1448,8 +1448,49 @@ protected void onCreate(Bundle savedInstanceState) {
             case BLUETOOTH: if ((mConnection != null) && mConnection.isBound()) getService().watchBluetoothHeadset(); break;
             default: break;
         }
-    }
+    }*/
 
+@Override
+public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    
+    // Handle izin lokasi khusus
+    if (requestCode == REQUEST_CODE_LOCATION_PERMISSION) {
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            Log.d(TAG, "Izin lokasi diberikan, mengambil lokasi...");
+            ambilDanTampilkanLokasi();
+        } else {
+            Log.w(TAG, "Izin lokasi ditolak");
+            Toast.makeText(this, "Izin lokasi diperlukan untuk fitur ini", Toast.LENGTH_SHORT).show();
+        }
+        // PERBAIKAN UTAMA: HAPUS perintah 'return;' dari sini agar antrean di bawah tidak tersumbat!
+    }
+    
+    // Lanjutkan aliran eksekusi ke library kustom TeamTalk untuk memicu READ_PHONE_STATE
+    Permissions granted = Permissions.onRequestResult(this, requestCode, grantResults);
+    if (granted == null) {
+        granted = Permissions.fromRequestCode(requestCode);
+        if (granted == null) return;
+        if ((granted != Permissions.READ_MEDIA_IMAGES) && (granted != Permissions.READ_MEDIA_VIDEO) && (granted != Permissions.READ_MEDIA_AUDIO)) return;
+    }
+    switch (granted) {
+        case READ_EXTERNAL_STORAGE: case READ_MEDIA_IMAGES: case READ_MEDIA_VIDEO: case READ_MEDIA_AUDIO:
+            if ((Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) || areMediaPermissionsComplete()) fileSelectionStart();
+            break;
+        case WAKE_LOCK: 
+            if (wakeLock != null) wakeLock.acquire(); 
+            break;
+        case READ_PHONE_STATE: 
+            Log.d(TAG, "Izin READ_PHONE_STATE berhasil didapatkan!");
+            if ((mConnection != null) && mConnection.isBound()) getService().enablePhoneCallReaction(); 
+            break;
+        case BLUETOOTH: 
+            if ((mConnection != null) && mConnection.isBound()) getService().watchBluetoothHeadset(); 
+            break;
+        default: 
+            break;
+    }
+}
     @Override public void onCmdProcessing(int cmdId, boolean complete) { if(complete) activecmds.remove(cmdId); }
 
     // === SISTEM LOGIN FIREBASE ROBUST (ADOPSI DARI CLASS SUKSES) ===
@@ -1844,41 +1885,57 @@ protected void onCreate(Bundle savedInstanceState) {
     }
 
 // === METHOD BARU: PROSES LOKASI DI AWAL ===
-    private void mulaiProsesLokasi() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            ambilDanTampilkanLokasi();
-        } else {
-            if (!lokasiSudahDiminta) {
-                ActivityCompat.requestPermissions(this, 
-                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 
-                    REQUEST_CODE_LOCATION_PERMISSION);
-                lokasiSudahDiminta = true;
-                Log.d(TAG, "Meminta izin lokasi di awal...");
-            }
+    // 1. FUNGSI UNTUK MEMULAI PROSES LOKASI
+private void mulaiProsesLokasi() {
+    if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+        // Jika izin lokasi sudah aktif, langsung ambil lokasi daerah
+        ambilDanTampilkanLokasi();
+        // Karena lokasi sudah aman, langsung panggil izin telepon secara berurutan
+        picuIzinPhoneStateAman();
+    } else {
+        if (!lokasiSudahDiminta) {
+            lokasiSudahDiminta = true;
+            Log.d(TAG, "Meminta izin lokasi...");
+            ActivityCompat.requestPermissions(this, 
+                new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 
+                REQUEST_CODE_LOCATION_PERMISSION);
         }
     }
-// === METHOD BARU: AMBIL DAN TAMPILKAN LOKASI ===
-    private void ambilDanTampilkanLokasi() {
-        new Thread(() -> {
-            String wilayahTeks = dk.bearware.ofaid.OfaLokasi.getLokasiDaerah(MainActivity.this);
-            
-            runOnUiThread(() -> {
-                lokasiSayaCache = wilayahTeks;
-                
-                if (mConnection != null && mConnection.isBound()) {
-                    User myUser = new User();
-                    getClient().getUser(getClient().getMyUserID(), myUser);
-                    if (myUser.nUserID > 0) {
-                        getClient().doChangeStatus(myUser.nStatusMode, wilayahTeks);
-                    }
+}
+
+// 2. FUNGSI PENGAMAN: MEMANGGIL IZIN TELEPON SETELAH LOKASI SELESAI
+private void picuIzinPhoneStateAman() {
+    getWindow().getDecorView().post(() -> {
+        if (!isFinishing() && mConnection != null && mConnection.isBound()) {
+            Log.d(TAG, "Memicu izin telepon secara aman.");
+            // Memanggil izin telepon milik library bawaan aplikasi Anda
+            if (Permissions.READ_PHONE_STATE.request(MainActivity.this)) {
+                getService().enablePhoneCallReaction();
+            }
+        }
+    });
+}
+
+// 3. FUNGSI AMBIL DAN TAMPILKAN LOKASI (KABUPATEN & PROVINSI)
+private void ambilDanTampilkanLokasi() {
+    new Thread(() -> {
+        String wilayahTeks = dk.bearware.ofaid.OfaLokasi.getLokasiDaerah(MainActivity.this);
+        
+        runOnUiThread(() -> {
+            lokasiSayaCache = wilayahTeks;
+            if (mConnection != null && mConnection.isBound()) {
+                User myUser = new User();
+                getService().getTTInstance().getUser(getService().getTTInstance().getMyUserID(), myUser);
+                if (myUser.nUserID > 0) {
+                    getService().getTTInstance().doChangeStatus(myUser.nStatusMode, wilayahTeks);
                 }
-                
+            }
+            if (channelsAdapter != null) {
                 channelsAdapter.notifyDataSetChanged();
-                Log.d(TAG, "Lokasi berhasil diambil di awal: " + wilayahTeks);
-            });
-        }).start();
-    
-    }
+            }
+        });
+    }).start();
+}
+
     
 } // <-- PENUTUP CLASS MainActivity
