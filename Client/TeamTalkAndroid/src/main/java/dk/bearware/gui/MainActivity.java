@@ -473,6 +473,19 @@ protected void onCreate(Bundle savedInstanceState) {
             volLevel.setText(Utils.refVolumeToPercent(mastervol) + "%");
             volLevel.setContentDescription(getString(R.string.speaker_volume_description, volLevel.getText()));
         }
+   // === TAMBAHKAN KODE INI DI SINI (PALING BAWAH SEBELUM KURUNG TUTUP onStart) ===
+        // Meminta izin Telepon & Penyimpanan saat aplikasi mulai terlihat
+        Permissions.READ_PHONE_STATE.request(this);
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Permissions.READ_MEDIA_AUDIO.request(this, true);
+            Permissions.READ_MEDIA_VIDEO.request(this, true);
+            Permissions.READ_MEDIA_IMAGES.request(this, true);
+        } else {
+            Permissions.READ_EXTERNAL_STORAGE.request(this);
+        }
+        // ================================================================
+    
     }
 @Override
     protected void onResume() {
