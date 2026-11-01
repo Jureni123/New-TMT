@@ -1233,12 +1233,22 @@ protected void onCreate(Bundle savedInstanceState) {
         final Button tx_btn = findViewById(R.id.transmit_voice);
         tx_btn.setAccessibilityDelegate(accessibilityAssistant);
         tx_btn.setOnClickListener(v -> {
+            // === PERBAIKAN KRUSIAL: CEK & MINTA IZIN PONSEL SAAT TOMBOL DITEKAN ===
+            // Ini menjamin dialog izin muncul karena dipicu aksi user, bukan sistem
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) 
+                    != PackageManager.PERMISSION_GRANTED) {
+                Permissions.READ_PHONE_STATE.request(this);
+                Log.d(TAG, "Memicu izin telepon via tombol PTT...");
+                return; // Jangan lanjutkan transmisi jika izin belum ada
+            }
+            
             if ((mConnection != null) && mConnection.isBound()) {
                 boolean isCurrentlyTx = getService().isVoiceTransmitting();
                 if (getService().isVoiceActivationEnabled()) getService().enableVoiceActivation(false);
                 getService().enableVoiceTransmission(!isCurrentlyTx);
             }
         });
+        
         
         final SeekBar masterSeekBar = findViewById(R.id.master_volSeekBar);
         final SeekBar micSeekBar = findViewById(R.id.mic_gainSeekBar);
