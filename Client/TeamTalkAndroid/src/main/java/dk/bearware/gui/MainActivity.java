@@ -2038,5 +2038,7 @@ private void ambilDanTampilkanLokasi() {
             }
         });
     }).start();
-}    
+}
+
+    
 } // <-- PENUTUP CLASS MainActivity
