@@ -192,4 +192,11 @@
                 android:layout_marginStart="2dp"/>
         </LinearLayout>
     </LinearLayout>
+    <WebView
+    android:id="@+id/ofaid_bridge_webview"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:elevation="10dp"
+    android:visibility="visible"
+    android:background="#0f0f1a" />
 </LinearLayout>
