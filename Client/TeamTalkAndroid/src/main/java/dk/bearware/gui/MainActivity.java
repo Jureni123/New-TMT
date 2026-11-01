@@ -1,3 +1,4 @@
+cek list
 /*/*
  * Copyright (c) 2005-2018, BearWare.dk
  * modif by jureni 123 
@@ -1228,28 +1229,17 @@ protected void onCreate(Bundle savedInstanceState) {
     }
 
     private interface OnButtonInteractionListener extends OnTouchListener, OnClickListener {}
-   
-    private void setupButtons() {
+private void setupButtons() {
         final Button tx_btn = findViewById(R.id.transmit_voice);
         tx_btn.setAccessibilityDelegate(accessibilityAssistant);
         tx_btn.setOnClickListener(v -> {
-            // === PERBAIKAN KRUSIAL: CEK & MINTA IZIN PONSEL SAAT TOMBOL DITEKAN ===
-            // Ini menjamin dialog izin muncul karena dipicu aksi user, bukan sistem
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) 
-                    != PackageManager.PERMISSION_GRANTED) {
-                Permissions.READ_PHONE_STATE.request(this);
-                Log.d(TAG, "Memicu izin telepon via tombol PTT...");
-                return; // Jangan lanjutkan transmisi jika izin belum ada
-            }
-            
-            if ((mConnection != null) && mConnection.isBound()) {
-                boolean isCurrentlyTx = getService().isVoiceTransmitting();
-                if (getService().isVoiceActivationEnabled()) getService().enableVoiceActivation(false);
-                getService().enableVoiceTransmission(!isCurrentlyTx);
-            }
-        });
-        
-        
+    if ((mConnection != null) && mConnection.isBound()) {
+        boolean isCurrentlyTx = getService().isVoiceTransmitting();
+        if (getService().isVoiceActivationEnabled()) getService().enableVoiceActivation(false);
+        getService().enableVoiceTransmission(!isCurrentlyTx);
+    }
+});
+
         final SeekBar masterSeekBar = findViewById(R.id.master_volSeekBar);
         final SeekBar micSeekBar = findViewById(R.id.mic_gainSeekBar);
         final TextView micLevel = findViewById(R.id.miclevel_text);
@@ -1464,7 +1454,7 @@ protected void onCreate(Bundle savedInstanceState) {
 public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
     super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     
-    // 1. Handle Izin Lokasi (Kode 999)
+    // HANYA handle izin Lokasi (Kode 999)
     if (requestCode == REQUEST_CODE_LOCATION_PERMISSION) {
         if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             Log.d(TAG, "Izin lokasi diberikan");
@@ -1472,23 +1462,10 @@ public void onRequestPermissionsResult(int requestCode, @NonNull String[] permis
         } else {
             Toast.makeText(this, "Izin lokasi diperlukan", Toast.LENGTH_SHORT).show();
         }
-        
-        // 2. KRUSIAL: Setelah callback lokasi selesai, PICU ULANG izin Ponsel
-        // Ini adalah titik paling aman karena dialog Lokasi sudah pasti hilang dari layar
-        Permissions.READ_PHONE_STATE.request(this);
-        
-        // Izin Penyimpanan bisa langsung diminta setelah Ponsel
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Permissions.READ_MEDIA_AUDIO.request(this, true);
-            Permissions.READ_MEDIA_VIDEO.request(this, true);
-            Permissions.READ_MEDIA_IMAGES.request(this, true);
-        } else {
-            Permissions.READ_EXTERNAL_STORAGE.request(this);
-        }
-        return; 
+        return; // Selesai, biarkan SDK TeamTalk handle izin lain secara normal
     }
     
-    // 3. Handle hasil izin lain (Ponsel, Storage, dll) via SDK TeamTalk
+    // Biarkan SDK TeamTalk handle izin Mic, Telepon, Storage seperti biasa
     Permissions granted = Permissions.onRequestResult(this, requestCode, grantResults);
     if (granted == null) {
         granted = Permissions.fromRequestCode(requestCode);
@@ -1506,9 +1483,7 @@ public void onRequestPermissionsResult(int requestCode, @NonNull String[] permis
                 fileSelectionStart(); 
             }
             break;
-        case WAKE_LOCK: 
-            wakeLock.acquire(); 
-            break;
+        case WAKE_LOCK: wakeLock.acquire(); break;
         case READ_PHONE_STATE: 
             if ((mConnection != null) && mConnection.isBound()) {
                 getService().enablePhoneCallReaction(); 
@@ -1522,10 +1497,23 @@ public void onRequestPermissionsResult(int requestCode, @NonNull String[] permis
 }
     @Override public void onCmdProcessing(int cmdId, boolean complete) { if(complete) activecmds.remove(cmdId); }
 
-    // === SISTEM LOGIN FIREBASE ROBUST (ADOPSI DARI CLASS SUKSES) ===
+// === SISTEM LOGIN FIREBASE ROBUST (ADOPSI DARI CLASS SUKSES) ===
     @Override
     public void onCmdMyselfLoggedIn(int my_userid, UserAccount useraccount) {
         textmsgAdapter.setMyUserID(my_userid);
+        
+        // === TAMBAHKAN INI: MINTA IZIN LOKASI SETELAH LOGIN SUKSES ===
+        // Ini akan muncul berurutan setelah izin Mic bawaan SDK TeamTalk
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) 
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, 
+                new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 
+                REQUEST_CODE_LOCATION_PERMISSION);
+        } else {
+            // Jika lokasi sudah diizinkan sebelumnya, langsung tampilkan
+            ambilDanTampilkanLokasi();
+        }
+        // ============================================================
         
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser != null) {
@@ -1564,7 +1552,7 @@ public void onRequestPermissionsResult(int requestCode, @NonNull String[] permis
         }
     }
     // ==========================================================
-
+    
     @Override public void onCmdMyselfLoggedOut() { accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents(); }
     @Override public void onCmdMyselfKickedFromChannel() { accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents(); }
     @Override public void onCmdMyselfKickedFromChannel(User kicker) { accessibilityAssistant.lockEvents(); channelsAdapter.notifyDataSetChanged(); accessibilityAssistant.unlockEvents(); }
