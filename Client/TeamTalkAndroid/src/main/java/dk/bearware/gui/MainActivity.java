@@ -70,6 +70,11 @@ import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentPagerAdapter;
 import androidx.fragment.app.ListFragment;
 import androidx.viewpager.widget.ViewPager;
+//====we view
+
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.JavascriptInterface;
 
 // === IMPORT GPS BARU SESUAI STRUKTUR OFAID ASLI ===
 import dk.bearware.ofaid.OfaLokasi;
@@ -210,8 +215,7 @@ private boolean lokasiSudahDiminta = false;
     public FileListAdapter getFilesAdapter() { return filesAdapter; }
     public TextMessageAdapter getTextMessagesAdapter() { return textmsgAdapter; }
     public MediaAdapter getMediaAdapter() { return mediaAdapter; }
-
-  @Override
+@Override
 protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     ctx = getApplicationContext();
@@ -256,7 +260,59 @@ protected void onCreate(Bundle savedInstanceState) {
     mViewPager.setAdapter(mSectionsPagerAdapter);
     mViewPager.addOnPageChangeListener(mSectionsPagerAdapter);
     mTabLayout.setupWithViewPager(mViewPager);
-    setupButtons();
+    
+    // HANYA SATU KALI PEMANGGILAN SETUP BUTTONS
+    setupButtons(); 
+    
+    // === INISIALISASI OFAID UI BRIDGE (MENIMPA UI ASLI) ===
+    WebView ofaidView = findViewById(R.id.ofaid_bridge_webview);
+    if (ofaidView != null) {
+        // 1. MATIKAN SEMUA FUNGSI & TAMPILAN ASLI AGAR TIDAK ERROR/KONFLIK
+        int[] idsToHide = new int[]{
+            R.id.tab_layout, R.id.pager, R.id.transmit_voice,
+            R.id.master_volSeekBar, R.id.mic_gainSeekBar,
+            R.id.speakerBtn, R.id.voxSwitch,
+            R.id.btn_change_avatar, R.id.btn_settings_shortcut, R.id.btn_files_shortcut,
+            R.id.connectionstat_textview, R.id.pingstat_textview, R.id.totalstat_textview
+        };
+
+        for (int id : idsToHide) {
+            View v = findViewById(id);
+            if (v != null) v.setVisibility(View.GONE);
+        }
+        
+        // Sembunyikan container status bar (parent dari connectionstat_textview)
+        View statusParent = findViewById(R.id.connectionstat_textview);
+        if(statusParent != null && statusParent.getParent() instanceof View) {
+             ((View)statusParent.getParent()).setVisibility(View.GONE);
+        }
+
+        // 2. SETUP WEBVIEW OFAID UI
+        WebSettings settings = ofaidView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(true);
+        
+        // Muat aset OFAID UI milikmu
+        ofaidView.loadUrl("file:///android_asset/ofaid_ui.html");
+        
+        // 3. JEMBATAN KOMUNIKASI JAVA <-> OFAID UI
+        ofaidView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public String getBridgeData() {
+                return "{\"channelName\":\"CH 1\",\"myLocation\":\"Memuat Lokasi...\",\"users\":[]}"; 
+            }
+            
+            @JavascriptInterface
+            public void triggerPtt() {
+                runOnUiThread(() -> {
+                    Button txBtn = findViewById(R.id.transmit_voice);
+                    if(txBtn != null) txBtn.performClick();
+                });
+            }
+        }, "AndroidBridge");
+    }
+    // ================================================
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         final MediaPlayer mMediaPlayer = MediaPlayer.create(ctx, R.raw.silence);
