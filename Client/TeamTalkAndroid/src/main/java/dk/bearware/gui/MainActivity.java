@@ -260,31 +260,17 @@ protected void onCreate(Bundle savedInstanceState) {
     mViewPager.setAdapter(mSectionsPagerAdapter);
     mViewPager.addOnPageChangeListener(mSectionsPagerAdapter);
     mTabLayout.setupWithViewPager(mViewPager);
-    
     // HANYA SATU KALI PEMANGGILAN SETUP BUTTONS
     setupButtons(); 
     
     // === INISIALISASI OFAID UI BRIDGE (MENIMPA UI ASLI) ===
     WebView ofaidView = findViewById(R.id.ofaid_bridge_webview);
     if (ofaidView != null) {
-        // 1. MATIKAN SEMUA FUNGSI & TAMPILAN ASLI AGAR TIDAK ERROR/KONFLIK
-        int[] idsToHide = new int[]{
-            R.id.tab_layout, R.id.pager, R.id.transmit_voice,
-            R.id.master_volSeekBar, R.id.mic_gainSeekBar,
-            R.id.speakerBtn, R.id.voxSwitch,
-            R.id.btn_change_avatar, R.id.btn_settings_shortcut, R.id.btn_files_shortcut,
-            R.id.connectionstat_textview, R.id.pingstat_textview, R.id.totalstat_textview
-        };
-
-        for (int id : idsToHide) {
-            View v = findViewById(id);
-            if (v != null) v.setVisibility(View.GONE);
-        }
-        
-        // Sembunyikan container status bar (parent dari connectionstat_textview)
-        View statusParent = findViewById(R.id.connectionstat_textview);
-        if(statusParent != null && statusParent.getParent() instanceof View) {
-             ((View)statusParent.getParent()).setVisibility(View.GONE);
+        // 1. MATIKAN SEMUA TAMPILAN ASLI DENGAN MENYEMBUNYIKAN CONTAINER UTAMA
+        // Ini menjamin layar 100% tertutup OFAID UI tanpa celah
+        View originalContainer = findViewById(R.id.original_tt_container);
+        if (originalContainer != null) {
+            originalContainer.setVisibility(View.GONE);
         }
 
         // 2. SETUP WEBVIEW OFAID UI
@@ -300,7 +286,53 @@ protected void onCreate(Bundle savedInstanceState) {
         ofaidView.addJavascriptInterface(new Object() {
             @JavascriptInterface
             public String getBridgeData() {
-                return "{\"channelName\":\"CH 1\",\"myLocation\":\"Memuat Lokasi...\",\"users\":[]}"; 
+                try {
+                    // Ambil data real dari SDK TeamTalk
+                    String chanName = (curchannel != null) ? curchannel.szName : "Lobby";
+                    int chanId = (curchannel != null) ? curchannel.nChannelID : 0;
+                    String myLoc = (lokasiSayaCache != null) ? lokasiSayaCache : "Memuat Lokasi...";
+                    
+                    // Ambil statistik koneksi
+                    ClientStatistics stats = new ClientStatistics();
+                    getClient().getClientStatistics(stats);
+                    int ping = (int) stats.nUdpPingTimeMs;
+                    long tx = stats.nUdpBytesSent / 1024; // KB
+                    long rx = stats.nUdpBytesRecv / 1024; // KB
+                    
+                    // AMBIL URL AVATAR DARI FIREBASE (PENTING UNTUK HEADER SWAP)
+                    String avatarUrl = "";
+                    try {
+                        com.google.firebase.auth.FirebaseUser fbUser = com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser();
+                        if (fbUser != null && fbUser.getPhotoUrl() != null) {
+                            avatarUrl = fbUser.getPhotoUrl().toString();
+                        }
+                    } catch (Exception e) {
+                        // Abaikan jika Firebase belum siap
+                    }
+
+                    // Buat JSON lengkap
+                    return "{" +
+                        "\"channelName\":\"" + chanName + "\"," +
+                        "\"channelId\":\"CH " + chanId + "\"," +
+                        "\"myLocation\":\"" + myLoc + "\"," +
+                        "\"myAvatarUrl\":\"" + avatarUrl + "\"," + // <-- INI KUNCINYA!
+                        "\"ping\":" + ping + "," +
+                        "\"txKbs\":" + tx + "," +
+                        "\"rxKbs\":" + rx + "," +
+                        "\"isConnected\":true" +
+                    "}";
+                } catch (Exception e) {
+                    return "{\"channelName\":\"Error\",\"myLocation\":\"Gagal load\",\"myAvatarUrl\":\"\"}";
+                }
+            }
+
+            // METHOD BARU: Agar HTML tahu kapan user sedang TX
+            @JavascriptInterface
+            public boolean isVoiceTransmitting() {
+                if (mConnection != null && mConnection.isBound()) {
+                    return getService().isVoiceTransmitting();
+                }
+                return false;
             }
             
             @JavascriptInterface
@@ -313,7 +345,6 @@ protected void onCreate(Bundle savedInstanceState) {
         }, "AndroidBridge");
     }
     // ================================================
-
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         final MediaPlayer mMediaPlayer = MediaPlayer.create(ctx, R.raw.silence);
         mMediaPlayer.setOnCompletionListener(mp -> mp.release());
@@ -2007,7 +2038,5 @@ private void ambilDanTampilkanLokasi() {
             }
         });
     }).start();
-}
-
-    
+}    
 } // <-- PENUTUP CLASS MainActivity
