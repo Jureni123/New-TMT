@@ -1,7 +1,6 @@
-cek list
 /*/*
  * Copyright (c) 2005-2018, BearWare.dk
- * modif by jureni 123 
+ * modif by jureni © 123  2026
  */
 package dk.bearware.gui;
 
