@@ -2,187 +2,171 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hello Live — Ruang Ngopi</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>OFAID UI — Ruang Ngopi</title>
     <style>
-        /* ... (SEMUA CSS KAMU TETAP SAMA PERSIS, TIDAK DIUBAH) ... */
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
-        body { background: #0f0f1a; color: #e2e8f0; min-height: 100vh; max-width: 420px; margin: 0 auto; padding: 16px; padding-bottom: 90px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background: #0f0f1a; color: #e2e8f0; min-height: 100vh; max-width: 420px; margin: 0 auto; padding: 16px; padding-bottom: 90px; overflow-x: hidden; }
+        
+        /* Header */
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .channel-id { font-size: 13px; color: #6366f1; background: rgba(99, 102, 241, 0.15); padding: 6px 12px; border-radius: 16px; }
         .channel-title { text-align: center; flex: 1; }
         .channel-title h1 { font-size: 22px; font-weight: 700; background: linear-gradient(90deg, #f59e0b, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .channel-title p { font-size: 13px; color: #94a3b8; margin-top: 4px; }
         .online-indicator { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #22c55e; }
-        .online-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; box-shadow: 0 0 6px #22c55e; }
+        .online-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; box-shadow: 0 0 6px #22c55e; animation: pulse 2s infinite; }
+        
+        /* Host Section */
         .host-section { text-align: center; padding: 24px 0; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 20px; }
         .host-avatar-wrap { position: relative; display: inline-block; margin-bottom: 14px; }
         .host-avatar { width: 110px; height: 110px; border-radius: 50%; object-fit: cover; border: 3px solid transparent; background: linear-gradient(#0f0f1a, #0f0f1a) padding-box, linear-gradient(135deg, #f59e0b, #ec4899) border-box; }
         .host-status { position: absolute; bottom: 6px; right: 6px; width: 18px; height: 18px; background: #22c55e; border-radius: 50%; border: 3px solid #0f0f1a; }
         .host-name { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
         .host-mood { font-size: 13px; color: #9ca3af; }
+
+        /* Stats Grid */
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 24px; }
         .stat-box { background: rgba(255,255,255,0.03); border-radius: 12px; padding: 12px 8px; text-align: center; border: 1px solid rgba(255,255,255,0.04); }
         .stat-val { font-size: 15px; font-weight: 700; }
-        .stat-val.green { color: #4ade80; }
-        .stat-val.yellow { color: #facc15; }
-        .stat-val.purple { color: #a78bfa; }
+        .stat-val.green { color: #4ade80; } .stat-val.yellow { color: #facc15; } .stat-val.purple { color: #a78bfa; }
         .stat-lab { font-size: 10px; color: #6b7280; margin-top: 4px; }
+
+        /* User List */
         .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-        .list-title { font-size: 15px; font-weight: 600; }
-        .list-count { font-size: 12px; color: #6b7280; }
+        .list-title { font-size: 15px; font-weight: 600; } .list-count { font-size: 12px; color: #6b7280; }
         .user-list { display: flex; flex-direction: column; gap: 8px; }
         .user-card { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.02); border-radius: 12px; padding: 12px; border: 1px solid rgba(255,255,255,0.04); transition: 0.2s; }
-        .user-card:hover { background: rgba(255,255,255,0.04); }
-        .user-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
+        .user-card:active { background: rgba(255,255,255,0.06); transform: scale(0.98); }
+        .user-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: #334155; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; }
         .user-avatar.admin { border: 2px solid #f59e0b; }
         .user-info { flex: 1; }
         .user-name { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
         .role-badge { font-size: 10px; padding: 2px 6px; border-radius: 6px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
         .user-location { font-size: 11px; color: #6b7280; margin-top: 2px; }
         .channel-tag { font-size: 10px; color: #818cf8; background: rgba(99, 102, 241, 0.1); padding: 4px 8px; border-radius: 8px; }
-        .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 420px; background: rgba(15, 15, 26, 0.95); backdrop-filter: blur(10px); display: flex; justify-content: space-around; align-items: center; padding: 10px 0 20px; border-top: 1px solid rgba(255,255,255,0.06); }
-        .nav-btn { font-size: 20px; opacity: 0.4; }
+
+        /* Bottom Nav */
+        .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 420px; background: rgba(15, 15, 26, 0.95); backdrop-filter: blur(10px); display: flex; justify-content: space-around; align-items: center; padding: 10px 0 20px; border-top: 1px solid rgba(255,255,255,0.06); z-index: 100; }
+        .nav-btn { font-size: 20px; opacity: 0.4; cursor: pointer; }
         .nav-btn.active { opacity: 1; }
-        .ptt-main { width: 58px; height: 58px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #ef4444); display: flex; align-items: center; justify-content: center; font-size: 26px; box-shadow: 0 0 20px rgba(245, 158, 11, 0.3); }
+        
+        /* Tombol PTT OFAID */
+        .ptt-main { 
+            width: 64px; height: 64px; border-radius: 50%; 
+            background: linear-gradient(135deg, #f59e0b, #ef4444); 
+            display: flex; align-items: center; justify-content: center; 
+            font-size: 28px; box-shadow: 0 0 25px rgba(245, 158, 11, 0.4); 
+            margin-top: -30px; border: 4px solid #0f0f1a;
+            transition: transform 0.1s;
+        }
+        .ptt-main:active { transform: scale(0.9); box-shadow: 0 0 15px rgba(245, 158, 11, 0.6); }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
     <!-- Header -->
     <div class="header">
-        <span class="channel-id" id="bridge-channel-id">CH ---</span>
+        <span class="channel-id" id="ui-chan-id">CH ---</span>
         <div class="channel-title">
-            <h1 id="bridge-channel-name">MEMUAT...</h1>
-            <p id="bridge-channel-topic">Menunggu koneksi...</p>
+            <h1 id="ui-chan-name">OFAID LIVE</h1>
+            <p id="ui-chan-topic">Ruang Ngopi Digital 🎧</p>
         </div>
         <div class="online-indicator">
             <span class="online-dot"></span>
-            <span id="bridge-connection-status">● Offline</span>
+            <span id="ui-status">Online</span>
         </div>
     </div>
 
-    <!-- Host (Myself) -->
+    <!-- Host / Diri Sendiri -->
     <div class="host-section">
         <div class="host-avatar-wrap">
-            <img class="host-avatar" id="bridge-host-avatar" src="" alt="Host">
+            <img class="host-avatar" src="https://ui-avatars.com/api/?name=OFAID&background=f59e0b&color=fff" alt="Host">
             <span class="host-status"></span>
         </div>
-        <h2 class="host-name" id="bridge-host-name">Nama Saya</h2>
-        <p class="host-mood" id="bridge-host-location">📍 Mendeteksi lokasi...</p>
+        <h2 class="host-name" id="ui-my-name">Pengembang OFAID</h2>
+        <p class="host-mood" id="ui-my-loc">📍 Mendeteksi lokasi...</p>
     </div>
 
-    <!-- Stats -->
+    <!-- Statistik Koneksi -->
     <div class="stats-grid">
-        <div class="stat-box">
-            <div class="stat-val green" id="bridge-stat-online">●</div>
-            <div class="stat-lab">Online</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-val purple" id="bridge-stat-tx">0</div>
-            <div class="stat-lab">Tx kb/s</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-val purple" id="bridge-stat-rx">0</div>
-            <div class="stat-lab">Rx kb/s</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-val yellow" id="bridge-stat-ping">--ms</div>
-            <div class="stat-lab">Ping</div>
-        </div>
+        <div class="stat-box"><div class="stat-val green">●</div><div class="stat-lab">Status</div></div>
+        <div class="stat-box"><div class="stat-val purple" id="ui-tx">0</div><div class="stat-lab">Tx KB/s</div></div>
+        <div class="stat-box"><div class="stat-val purple" id="ui-rx">0</div><div class="stat-lab">Rx KB/s</div></div>
+        <div class="stat-box"><div class="stat-val yellow" id="ui-ping">--</div><div class="stat-lab">Ping ms</div></div>
     </div>
 
-    <!-- User List -->
+    <!-- Daftar User -->
     <div class="list-header">
-        <span class="list-title">👥 Pendengar</span>
-        <span class="list-count" id="bridge-user-count">0 orang</span>
+        <span class="list-title">👥 Anggota Channel</span>
+        <span class="list-count" id="ui-user-count">0 orang</span>
     </div>
-    <div class="user-list" id="bridge-user-list-container">
-        <!-- User cards akan di-generate oleh JavaScript -->
+    <div class="user-list" id="ui-user-list">
+        <!-- Data user akan dimuat otomatis oleh JS -->
     </div>
 
-    <!-- Bottom Nav -->
+    <!-- Navigasi Bawah -->
     <div class="bottom-nav">
         <span class="nav-btn">📊</span>
         <span class="nav-btn">👥</span>
-        <span class="nav-btn ptt-main" onclick="AndroidBridge.triggerPtt()">🎙</span>
+        <!-- Tombol PTT yang terhubung ke Java -->
+        <div class="ptt-main" onclick="handlePtt()">🎙️</div>
         <span class="nav-btn">💬</span>
         <span class="nav-btn">⚙️</span>
     </div>
 
     <script>
-        // Fungsi untuk memperbarui UI dengan data dari Java
-        function updateBridgeUI(dataJson) {
-            try {
-                const data = JSON.parse(dataJson);
-                
-                // Update Header
-                document.getElementById('bridge-channel-id').innerText = data.channelId || 'CH ---';
-                document.getElementById('bridge-channel-name').innerText = data.channelName || 'MEMUAT...';
-                document.getElementById('bridge-channel-topic').innerText = data.channelTopic || '';
-                document.getElementById('bridge-connection-status').innerText = data.isConnected ? '● Online' : '● Offline';
-                document.getElementById('bridge-connection-status').style.color = data.isConnected ? '#22c55e' : '#ef4444';
-
-                // Update Host (Saya)
-                document.getElementById('bridge-host-name').innerText = data.myNickname || 'Nama Saya';
-                document.getElementById('bridge-host-location').innerText = '📍 ' + (data.myLocation || 'Lokasi belum terdeteksi');
-                if(data.myAvatarUrl) document.getElementById('bridge-host-avatar').src = data.myAvatarUrl;
-
-                // Update Stats
-                document.getElementById('bridge-stat-tx').innerText = data.txKbs || '0';
-                document.getElementById('bridge-stat-rx').innerText = data.rxKbs || '0';
-                document.getElementById('bridge-stat-ping').innerText = (data.pingMs || '--') + 'ms';
-
-                // Update User List
-                const listContainer = document.getElementById('bridge-user-list-container');
-                listContainer.innerHTML = ''; // Bersihkan list lama
-                
-                if (data.users && Array.isArray(data.users)) {
-                    document.getElementById('bridge-user-count').innerText = data.users.length + ' orang';
-                    
-                    data.users.forEach(user => {
-                        // Jangan tampilkan diri sendiri di list pendengar
-                        if (user.isMyself) return; 
-
-                        const card = document.createElement('div');
-                        card.className = 'user-card';
-                        
-                        const isAdmin = user.isAdmin ? '<span class="role-badge">ADMIN</span>' : '';
-                        const avatarHtml = user.avatarUrl 
-                            ? `<img class="user-avatar ${user.isAdmin ? 'admin' : ''}" src="${user.avatarUrl}" alt="${user.nickname}">`
-                            : `<div class="user-avatar" style="background: linear-gradient(135deg, #6b7280, #4b5563); display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">${user.nickname.substring(0,2).toUpperCase()}</div>`;
-
-                        card.innerHTML = `
-                            ${avatarHtml}
-                            <div class="user-info">
-                                <div class="user-name">${user.nickname} ${isAdmin}</div>
-                                <div class="user-location">📍 ${user.location || 'Lokasi tidak diketahui'}</div>
-                            </div>
-                            <span class="channel-tag">${user.channelTag || 'CH ???'}</span>
-                        `;
-                        listContainer.appendChild(card);
-                    });
-                } else {
-                    document.getElementById('bridge-user-count').innerText = '0 orang';
-                }
-
-            } catch (e) {
-                console.error("Error parsing bridge data:", e);
-            }
-        }
-
-        // Panggil data dari Java setiap 2 detik
-        setInterval(() => {
+        // Fungsi saat tombol PTT ditekan
+        function handlePtt() {
+            const btn = document.querySelector('.ptt-main');
+            btn.style.transform = 'scale(0.85)';
+            setTimeout(() => btn.style.transform = 'scale(1)', 150);
+            
+            // Panggil fungsi Java untuk memicu PTT asli
             if (typeof AndroidBridge !== 'undefined') {
-                const jsonData = AndroidBridge.getBridgeData();
-                updateBridgeUI(jsonData);
+                AndroidBridge.triggerPtt();
             }
-        }, 2000);
-
-        // Panggil sekali saat load
-        if (typeof AndroidBridge !== 'undefined') {
-            updateBridgeUI(AndroidBridge.getBridgeData());
         }
+
+        // Fungsi update data dari Java
+        function refreshData() {
+            if (typeof AndroidBridge !== 'undefined') {
+                try {
+                    const rawData = AndroidBridge.getBridgeData();
+                    const data = JSON.parse(rawData);
+                    
+                    // Update elemen dasar
+                    if(data.channelName) document.getElementById('ui-chan-name').innerText = data.channelName;
+                    if(data.myLocation) document.getElementById('ui-my-loc').innerText = '📍 ' + data.myLocation;
+                    if(data.ping) document.getElementById('ui-ping').innerText = data.ping;
+                    
+                    // Render daftar user (contoh sederhana)
+                    const listContainer = document.getElementById('ui-user-list');
+                    if(data.users && data.users.length > 0) {
+                        document.getElementById('ui-user-count').innerText = data.users.length + ' orang';
+                        let html = '';
+                        data.users.forEach(u => {
+                            html += `
+                            <div class="user-card">
+                                <div class="user-avatar">${u.name.substring(0,2).toUpperCase()}</div>
+                                <div class="user-info">
+                                    <div class="user-name">${u.name} ${u.isAdmin ? '<span class="role-badge">HOST</span>' : ''}</div>
+                                    <div class="user-location">📍 ${u.location || 'Lokasi Privat'}</div>
+                                </div>
+                                <span class="channel-tag">${u.chanTag || 'CH ???'}</span>
+                            </div>`;
+                        });
+                        listContainer.innerHTML = html;
+                    }
+                } catch(e) { console.log("Waiting for bridge data..."); }
+            }
+        }
+
+        // Refresh setiap 2 detik
+        setInterval(refreshData, 2000);
+        refreshData(); // Panggil sekali saat load
     </script>
 </body>
 </html>
