@@ -1,213 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#0f0f1a">
 
-    <!-- WRAPPER UNTUK UI ASLI TEAMTALK (PENTING!) -->
+    <!-- ZONA 1: WEBVIEW OFAID BRIDGE (Hanya Header & Avatar Besar) -->
+    <WebView
+        android:id="@+id/ofaid_bridge_webview"
+        android:layout_width="match_parent"
+        android:layout_height="320dp" 
+        android:background="#1565C0" />
+
+    <!-- ZONA 2: NATIVE TEAMTALK UI (Tab, List User, Kontrol) -->
+    <!-- Kita bungkus UI asli agar tidak tertutup WebView -->
     <LinearLayout
         android:id="@+id/original_tt_container"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:background="#121212">
 
-        <!-- TAB LAYOUT — Garis indikator dihilangkan -->
-        <com.google.android.material.tabs.TabLayout
-            android:id="@+id/tab_layout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="#33b5e5"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp"
-            app:tabIndicatorHeight="0dp" />
-
-        <!-- ✅ BARIS INDIKATOR: ONLINE → PING → RX/TX -->
+        <!-- Status Bar Mini (Opsional, bisa disembunyikan jika mau full OFAID look) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:background="#f0f0f0"
-            android:paddingTop="2dp"
-            android:paddingBottom="2dp"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
+            android:background="#1e1e24"
+            android:padding="6dp"
             android:gravity="center_vertical">
-
-            <TextView
-                android:id="@+id/connectionstat_textview"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:maxLines="1"
-                android:ellipsize="end"/>
-
-            <TextView
-                android:id="@+id/pingstat_textview"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textSize="11sp"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="8dp"
-                android:maxLines="1"/>
-
-            <TextView
-                android:id="@+id/totalstat_textview"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textSize="11sp"
-                android:maxLines="1"/>
+            <TextView android:id="@+id/connectionstat_textview" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="10sp" android:textColor="#aaa"/>
+            <TextView android:id="@+id/pingstat_textview" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="10sp" android:textColor="#aaa" android:layout_marginHorizontal="8dp"/>
+            <TextView android:id="@+id/totalstat_textview" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="10sp" android:textColor="#aaa"/>
         </LinearLayout>
 
-        <!-- VIEWPAGER -->
+        <!-- TAB LAYOUT (Untuk pindah Channels/Chat/Media/Files) -->
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tab_layout"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:background="#1e1e24"
+            app:tabIndicatorHeight="0dp"
+            app:tabTextColor="#aaa"
+            app:tabSelectedTextColor="#fff"
+            app:tabMode="fixed" />
+
+        <!-- VIEWPAGER: Tempat ChannelListAdapter (item_user.xml) dirender -->
         <androidx.viewpager.widget.ViewPager
             android:id="@+id/pager"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1" />
+            android:layout_weight="1"
+            android:background="#121212" />
 
-        <!-- AREA KONTROL DI BAWAH -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#f5f5f5"
-            android:padding="4dp">
-
-            <!-- BARIS: KONTROL SUARA -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingTop="2dp"
-                android:paddingBottom="2dp">
-
-                <!-- KIRI: Mic + VOX -->
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center">
-
-                    <TextView
-                        android:id="@+id/miclevel_text"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textSize="9sp"/>
-
-                    <SeekBar
-                        android:id="@+id/mic_gainSeekBar"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"/>
-
-                    <ImageButton
-                        android:id="@+id/voxSwitch"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
-                        android:src="@drawable/mic_green"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:contentDescription="Voice Activation"/>
-                </LinearLayout>
-
-                <!-- TENGAH: TOMBOL BICARA -->
-                <Button
-                    android:id="@+id/transmit_voice"
-                    android:layout_width="0dp"
-                    android:layout_weight="2"
-                    android:layout_height="48dp"
-                    android:layout_marginStart="8dp"
-                    android:layout_marginEnd="8dp"
-                    android:background="@android:color/holo_red_light"
-                    android:text="@string/button_tx"
-                    android:textColor="#fff"
-                    android:textStyle="bold"/>
-
-                <!-- KANAN: Speaker + Mute -->
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center">
-
-                    <TextView
-                        android:id="@+id/vollevel_text"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textSize="9sp"/>
-
-                    <SeekBar
-                        android:id="@+id/master_volSeekBar"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"/>
-
-                    <ImageButton
-                        android:id="@+id/speakerBtn"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
-                        android:src="@drawable/speaker_blue"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:contentDescription="Speaker Mute"/>
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- BARIS: TOMBOL AKSI -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center"
-                android:paddingTop="4dp">
-
-                <Button
-                    android:id="@+id/btn_change_avatar"
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="36dp"
-                    android:text="Foto"
-                    android:textSize="11sp"
-                    android:backgroundTint="#33b5e5"
-                    android:textColor="#fff"
-                    android:layout_marginEnd="2dp"/>
-
-                <Button
-                    android:id="@+id/btn_settings_shortcut"
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="36dp"
-                    android:text="Set"
-                    android:textSize="11sp"
-                    android:backgroundTint="#757575"
-                    android:textColor="#fff"
-                    android:layout_marginStart="2dp"
-                    android:layout_marginEnd="2dp"/>
-
-                <Button
-                    android:id="@+id/btn_files_shortcut"
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="36dp"
-                    android:text="File"
-                    android:textSize="11sp"
-                    android:backgroundTint="#757575"
-                    android:textColor="#fff"
-                    android:layout_marginStart="2dp"/>
-            </LinearLayout>
-        </LinearLayout>
+        <!-- AREA KONTROL BAWAH (PTT Native, Mic, Speaker) -->
+        <include layout="@layout/layout_controls_native" /> 
+        <!-- Catatan: Sebaiknya pindahkan kontrol bawah ke file terpisah agar XML main rapi -->
     </LinearLayout>
-    <!-- AKHIR WRAPPER UI ASLI -->
 
-    <!-- WEBVIEW OFAID UI (MENUMPUK DI ATAS) -->
-    <WebView
-        android:id="@+id/ofaid_bridge_webview"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:elevation="10dp"
-        android:visibility="visible"
-        android:background="#0f0f1a" />
-
-</FrameLayout>
+</LinearLayout>
