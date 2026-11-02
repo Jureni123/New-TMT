@@ -6,15 +6,14 @@
     android:orientation="vertical"
     android:background="#0f0f1a">
 
-    <!-- ZONA 1: WEBVIEW OFAID BRIDGE (Hanya Header & Avatar Besar) -->
+    <!-- ZONA 1: WEBVIEW OFAID BRIDGE -->
     <WebView
         android:id="@+id/ofaid_bridge_webview"
         android:layout_width="match_parent"
         android:layout_height="320dp" 
         android:background="#1565C0" />
 
-    <!-- ZONA 2: NATIVE TEAMTALK UI (Tab, List User, Kontrol) -->
-    <!-- Kita bungkus UI asli agar tidak tertutup WebView -->
+    <!-- ZONA 2: NATIVE TEAMTALK UI -->
     <LinearLayout
         android:id="@+id/original_tt_container"
         android:layout_width="match_parent"
@@ -23,7 +22,7 @@
         android:orientation="vertical"
         android:background="#121212">
 
-        <!-- Status Bar Mini (Opsional, bisa disembunyikan jika mau full OFAID look) -->
+        <!-- Status Bar Mini -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -36,7 +35,7 @@
             <TextView android:id="@+id/totalstat_textview" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="10sp" android:textColor="#aaa"/>
         </LinearLayout>
 
-        <!-- TAB LAYOUT (Untuk pindah Channels/Chat/Media/Files) -->
+        <!-- Tab Layout -->
         <com.google.android.material.tabs.TabLayout
             android:id="@+id/tab_layout"
             android:layout_width="match_parent"
@@ -44,10 +43,9 @@
             android:background="#1e1e24"
             app:tabIndicatorHeight="0dp"
             app:tabTextColor="#aaa"
-            app:tabSelectedTextColor="#fff"
-            app:tabMode="fixed" />
+            app:tabSelectedTextColor="#fff" />
 
-        <!-- VIEWPAGER: Tempat ChannelListAdapter (item_user.xml) dirender -->
+        <!-- ViewPager (List User Native) -->
         <androidx.viewpager.widget.ViewPager
             android:id="@+id/pager"
             android:layout_width="match_parent"
@@ -55,9 +53,68 @@
             android:layout_weight="1"
             android:background="#121212" />
 
-        <!-- AREA KONTROL BAWAH (PTT Native, Mic, Speaker) -->
-        <include layout="@layout/layout_controls_native" /> 
-        <!-- Catatan: Sebaiknya pindahkan kontrol bawah ke file terpisah agar XML main rapi -->
-    </LinearLayout>
+        <!-- AREA KONTROL AUDIO (INI YANG HILANG SEHINGGA ERROR) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#1a1a1a"
+            android:padding="8dp">
 
+            <!-- Baris Kontrol Suara -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <!-- Kiri: Mic Gain & VOX -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center">
+                    <TextView android:id="@+id/miclevel_text" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="9sp" android:textColor="#aaa"/>
+                    <SeekBar android:id="@+id/mic_gainSeekBar" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+                    <ImageButton android:id="@+id/voxSwitch" android:layout_width="32dp" android:layout_height="32dp" android:src="@drawable/mic_green" android:background="?attr/selectableItemBackgroundBorderless"/>
+                </LinearLayout>
+
+                <!-- Tengah: Tombol PTT (Transmit Voice) -->
+                <Button
+                    android:id="@+id/transmit_voice"
+                    android:layout_width="0dp"
+                    android:layout_weight="2"
+                    android:layout_height="48dp"
+                    android:layout_marginHorizontal="8dp"
+                    android:backgroundTint="@android:color/holo_red_light"
+                    android:text="PUSH-TO-TALK"
+                    android:textColor="#fff"
+                    android:textStyle="bold"/>
+
+                <!-- Kanan: Master Volume & Speaker -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center">
+                    <TextView android:id="@+id/vollevel_text" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="9sp" android:textColor="#aaa"/>
+                    <SeekBar android:id="@+id/master_volSeekBar" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+                    <ImageButton android:id="@+id/speakerBtn" android:layout_width="32dp" android:layout_height="32dp" android:src="@drawable/speaker_blue" android:background="?attr/selectableItemBackgroundBorderless"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Baris Tombol Aksi Tambahan -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginTop="4dp">
+                <Button android:id="@+id/btn_settings_shortcut" android:layout_width="0dp" android:layout_weight="1" android:layout_height="36dp" android:text="Set" android:backgroundTint="#757575" android:textColor="#fff" android:layout_marginEnd="2dp"/>
+                <Button android:id="@+id/btn_files_shortcut" android:layout_width="0dp" android:layout_weight="1" android:layout_height="36dp" android:text="File" android:backgroundTint="#757575" android:textColor="#fff" android:layout_marginStart="2dp"/>
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
 </LinearLayout>
