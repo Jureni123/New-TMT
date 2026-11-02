@@ -144,6 +144,7 @@ import dk.bearware.utils.PrefsHelper;
 
 public class MainActivity extends AppCompatActivity
         implements TeamTalkConnectionListener, OnMenuItemClickListener, SensorEventListener,
+        OfaidUiBridge.BridgeDataProvider,  // ← TAMBAHKAN INI
         OnVoiceTransmissionToggleListener, ClientEventListener.OnConnectionLostListener,
         ClientEventListener.OnCmdProcessingListener, ClientEventListener.OnCmdMyselfLoggedInListener,
         ClientEventListener.OnCmdMyselfLoggedOutListener, ClientEventListener.OnCmdMyselfKickedFromChannelListener,
@@ -208,6 +209,9 @@ public class MainActivity extends AppCompatActivity
     SparseIntArray sounds = new SparseIntArray();
     private Context ctx;
     private PrefsHelper prefs;
+// === OFAID UI BRIDGE ===
+private OfaidUiBridge ofaidBridge;
+// =======================
 
 private static final int REQUEST_CODE_LOCATION_PERMISSION = 999;
 private boolean lokasiSudahDiminta = false;
@@ -2040,5 +2044,39 @@ private void ambilDanTampilkanLokasi() {
     }).start();
 }
 
-    
+// === IMPLEMENTASI OfaidUiBridge.BridgeDataProvider ===
+@Override
+public TeamTalkBase getClient() {
+    if (mConnection != null && mConnection.isBound()) {
+        return getService().getTTInstance();
+    }
+    return null;
+}
+
+@Override
+public TeamTalkService getService() {
+    if (mConnection != null && mConnection.isBound()) {
+        return mConnection.getService();
+    }
+    return null;
+}
+
+@Override
+public String getCurrentChannelName() {
+    return (curchannel != null) ? curchannel.szName : null;
+}
+
+@Override
+public int getCurrentChannelId() {
+    return (curchannel != null) ? curchannel.nChannelID : 0;
+}
+
+// Update cache lokasi ke bridge
+public void updateBridgeLocation(String lokasi) {
+    if (ofaidBridge != null) {
+        ofaidBridge.setLokasiCache(lokasi);
+    }
+}
+// =======================================================
+
 } // <-- PENUTUP CLASS MainActivity
