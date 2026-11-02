@@ -6,7 +6,8 @@
     android:paddingTop="6dp"
     android:paddingBottom="6dp"
     android:paddingStart="8dp"
-    android:paddingEnd="8dp">
+    android:paddingEnd="8dp"
+    android:background="#121212"> <!-- Background Gelap Konsisten -->
 
     <!-- ✅ FOTO PROFIL BULAT (Glide Compatible) -->
     <ImageView
@@ -30,6 +31,7 @@
         android:paddingStart="12dp"
         android:paddingEnd="8dp">
 
+        <!-- NAMA USER: Putih Terang -->
         <TextView
             android:id="@+id/nickname"
             android:layout_width="wrap_content"
@@ -38,8 +40,9 @@
             android:ellipsize="end"
             android:textSize="16sp"
             android:textStyle="bold"
-            android:textColor="?android:attr/textColorPrimary" />
+            android:textColor="#FFFFFF" />
 
+        <!-- STATUS MESSAGE: Abu-abu Terang -->
         <TextView
             android:id="@+id/status"
             android:layout_width="wrap_content"
@@ -47,9 +50,9 @@
             android:singleLine="true"
             android:ellipsize="end"
             android:textSize="12sp"
-            android:textColor="?android:attr/textColorSecondary" />
+            android:textColor="#B0B0B0" />
 
-        <!-- 📍 TEXTVIEW BARU UNTUK LOKASI AMAN USER -->
+        <!-- 📍 LOKASI USER: Hijau Neon (Agar Kontras & Khas OFAID) -->
         <TextView
             android:id="@+id/user_location"
             android:layout_width="wrap_content"
@@ -57,7 +60,7 @@
             android:singleLine="true"
             android:ellipsize="end"
             android:textSize="11sp"
-            android:textColor="#757575"
+            android:textColor="#76FF03" 
             android:visibility="gone"
             android:layout_marginTop="2dp" />
     </LinearLayout>
@@ -79,7 +82,9 @@
             android:text="@string/button_msg"
             android:textSize="12sp"
             android:focusable="false"
-            android:clickable="true" />
+            android:clickable="true"
+            android:backgroundTint="#33b5e5" 
+            android:textColor="#FFFFFF" />
     </LinearLayout>
 
 </RelativeLayout>
